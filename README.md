@@ -74,9 +74,9 @@ nonebot.load_plugin("galgame_box")
 
 ## 与 xqq-forwarder 的共存方式
 
-- 本插件注册 `on_command("shou", priority=1, block=False)`，仅在参数以 `gal`
-  开头时处理；
-- 其他 `/shou` 子命令会原样放行给 xqq-forwarder 的 `x_admin`（priority=5）；
+- 本插件注册 `on_command("shou", rule=<仅 /shou gal 开头>, priority=1, block=True)`，
+  只在消息以 `gal` 子命令开头时进入，其他 `/shou` 消息不会被这个匹配器拦截；
+- 非 gal 的 `/shou` 子命令会原样放行给 xqq-forwarder 的 `x_admin`（priority=5）；
 - 因此两者可以同时加载，互不冲突。
 
 ## 测试

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -21,7 +22,14 @@ from . import animetrace, format as fmt, http, touchgal, vndb
 from .config import config
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
 
-shou_gal = on_command("shou", priority=1, block=False)
+
+def _is_gal_event(event: MessageEvent) -> bool:
+    """只放行 /shou gal 开头的消息；其他 /shou 交给 x_admin。"""
+    text = (event.get_plaintext() or "").lstrip()
+    return re.match(r"^/?shou\s*gal(?:\s|$)", text, re.IGNORECASE) is not None
+
+
+shou_gal = on_command("shou", rule=_is_gal_event, priority=1, block=True)
 
 _SUB_MAP = {
     "vn": "vn",
