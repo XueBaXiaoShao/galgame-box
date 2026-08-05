@@ -189,6 +189,7 @@ def help_text() -> str:
 - /shou gal find [图片链接] —— AnimeTrace 角色识别
 - /shou gal waifu —— 每日老婆（仅女性角色，每人每天一次；管理员可 waifu
   reroll 换一个，或 waifu set <角色名/c开头的VNDB ID> 指定）
+- /shou gal waifu settings —— 查看/修改每日老婆筛选（热度、年代；仅管理员可改）
 
 搜索类命令（vn/character/producer/event/recommend/download）可在末尾追加
 limits <N> 控制本次返回条数，例如：/shou gal character ムラサメ limits 1"""

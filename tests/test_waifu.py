@@ -38,6 +38,23 @@ def test_waifu_state_round_trip(tmp_path, monkeypatch) -> None:
     assert waifu.get_today_waifu(123)["character_id"] == "c1"
 
 
+def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    assert waifu.load_settings() == {
+        "popular_threshold": 0,
+        "year_from": 0,
+        "year_to": 0,
+    }
+    waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
+
+    assert waifu.load_settings() == {
+        "popular_threshold": 5000,
+        "year_from": 2000,
+        "year_to": 2010,
+    }
+
+
 async def test_random_female_character_retries_empty_pages(monkeypatch) -> None:
     calls = []
 
@@ -86,7 +103,7 @@ async def test_waifu_once_per_day(monkeypatch, tmp_path) -> None:
     picks = [_character("c1"), _character("c2")]
     calls = []
 
-    async def fake_random():
+    async def fake_random(**kwargs):
         calls.append(1)
         return picks.pop(0)
 
@@ -109,7 +126,7 @@ async def test_waifu_admin_reroll(monkeypatch, tmp_path) -> None:
     _write_admins(tmp_path, [999])
     picks = [_character("c1"), _character("c2")]
 
-    async def fake_random():
+    async def fake_random(**kwargs):
         return picks.pop(0)
 
     monkeypatch.setattr(vndb, "random_female_character", fake_random)
@@ -148,7 +165,7 @@ async def test_waifu_admin_added_via_shou_admin_file(
     _write_admins(tmp_path, [777])
     called = False
 
-    async def fake_random():
+    async def fake_random(**kwargs):
         nonlocal called
         called = True
         return _character("c9")
@@ -204,6 +221,82 @@ async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
 
     assert "不是女性" in str(matcher.sent[-1])
     assert waifu.get_today_waifu(999) is None
+
+
+async def test_waifu_settings_view_open_to_all(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), "settings"))
+
+    assert "每日老婆设置" in str(matcher.sent[-1])
+    assert "热度阈值" in str(matcher.sent[-1])
+
+
+async def test_waifu_settings_modify_requires_admin(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(100), "settings popular 5000"))
+
+    assert "只有管理员可以修改每日老婆设置" in str(matcher.sent[-1])
+    assert waifu.load_settings()["popular_threshold"] == 0
+
+
+async def test_waifu_settings_admin_sets_popularity_and_year(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    matcher = _FakeMatcher()
+
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings popular 5000")
+    )
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings year 2000 2010")
+    )
+
+    assert waifu.load_settings()["popular_threshold"] == 5000
+    assert waifu.load_settings()["year_from"] == 2000
+    assert waifu.load_settings()["year_to"] == 2010
+    assert "已设置" in str(matcher.sent[-1])
+
+
+async def test_waifu_settings_admin_reset(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "settings reset"))
+
+    assert waifu.load_settings() == {
+        "popular_threshold": 0,
+        "year_from": 0,
+        "year_to": 0,
+    }
+
+
+async def test_waifu_draw_uses_settings(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
+    captured: dict = {}
+
+    async def fake_random(**kwargs):
+        captured.update(kwargs)
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), ""))
+
+    assert captured == {
+        "popular_threshold": 5000,
+        "year_from": 2000,
+        "year_to": 2010,
+    }
 
 
 def test_parse_subcommand_waifu() -> None:

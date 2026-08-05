@@ -39,6 +39,18 @@
 - 管理员只读取 `admin_ids.json`（不读环境变量），与 x_admin 完全共用；
 - 文件格式：`{"version": 2, "admins": [123456789]}`，可由 `/shou admin add/remove`
   维护，或直接编辑文件。
+
+### 每日老婆筛选设置（仅管理员）
+
+`/shou gal waifu settings` 可配置按热度与年代筛选，所有用户抽取时生效：
+
+- `/shou gal waifu settings popular <N>`：只抽 VNDB 作品投票数 ≥ N 的热门角色
+  （0=关闭热度筛选）；
+- `/shou gal waifu settings year <起始年> [结束年]`：只抽指定发售年代区间内的
+  作品角色（0=不限，如 `year 2000 2010`）；
+- `/shou gal waifu settings reset`：恢复默认（热度关闭、年代不限）；
+- 设置持久化在 `data/waifu_settings.json`，只允许 `admin_ids.json` 权限组中的
+  管理员修改，查看对所有人开放。
 - 每日老婆状态保存在 `GALGAME_DATA_DIR`（默认 `LOCALSTORE_DATA_DIR`，再回退 `data/`）。
 
 与参考项目的差异（适配 NoneBot 文本消息）：

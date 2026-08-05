@@ -97,3 +97,15 @@ async def test_find_character_builds_and_filter(fake_post) -> None:
 
     await fake_post(handler)
     assert await vndb.find_character("Hero", "Game") == []
+
+
+def test_waifu_filters_builds_popularity_and_year_ranges() -> None:
+    assert vndb._waifu_filters() == ["and", ["sex", "=", "f"]]
+
+    filters = vndb._waifu_filters(
+        popular_threshold=5000, year_from=2000, year_to=2010
+    )
+
+    assert ["vn", "=", ["votecount", ">=", 5000]] in filters
+    assert ["vn", "=", ["released", ">=", "2000-01-01"]] in filters
+    assert ["vn", "=", ["released", "<=", "2010-12-31"]] in filters

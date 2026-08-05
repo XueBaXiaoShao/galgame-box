@@ -43,6 +43,57 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def _settings_file() -> Path:
+    return Path(config.data_dir) / "waifu_settings.json"
+
+
+def default_settings() -> dict[str, int]:
+    return {"popular_threshold": 0, "year_from": 0, "year_to": 0}
+
+
+def load_settings() -> dict[str, int]:
+    """读取每日老婆筛选设置；缺失或损坏时返回默认值。"""
+    settings = default_settings()
+    try:
+        payload = json.loads(_settings_file().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return settings
+    for key in settings:
+        value = payload.get(key)
+        if isinstance(value, int) and not isinstance(value, bool):
+            settings[key] = value
+    return settings
+
+
+def save_settings(settings: dict[str, int]) -> None:
+    """持久化每日老婆筛选设置。"""
+    path = _settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    payload: dict[str, object] = {"version": 1}
+    payload.update(settings)
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def settings_text(settings: dict[str, int]) -> str:
+    threshold = settings.get("popular_threshold", 0)
+    year_from = settings.get("year_from", 0)
+    year_to = settings.get("year_to", 0)
+    return (
+        "【每日老婆设置】\n"
+        f"热度阈值：{threshold}（只抽 VNDB 投票数≥该值的作品角色；0=关闭）\n"
+        f"年代范围：{year_from or '不限'} - {year_to or '不限'}\n"
+        "用法：\n"
+        "/shou gal waifu settings popular <N>\n"
+        "/shou gal waifu settings year <起始年> [结束年]\n"
+        "/shou gal waifu settings reset"
+    )
+
+
 def get_today_waifu(user_id: int) -> dict[str, Any] | None:
     """返回该用户今天的每日老婆；没有或已过期返回 None。"""
     payload = _load()

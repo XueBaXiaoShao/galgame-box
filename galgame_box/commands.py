@@ -444,10 +444,17 @@ def _is_female_character(character: VNDBCharacter) -> bool:
 async def _cmd_waifu(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
-    """每日老婆：每人每天一次，管理员可 reroll / set。"""
+    """每日老婆：每人每天一次，管理员可 reroll / set / settings。"""
     user_id = int(getattr(event, "user_id", 0))
-    is_admin = permissions.is_admin(user_id)
     value = (value or "").strip()
+    command, _, arg = value.partition(" ")
+    command = command.lower()
+
+    if command == "settings":
+        await _handle_waifu_settings(matcher, event, arg.strip())
+        return
+
+    is_admin = permissions.is_admin(user_id)
 
     if not value:
         existing = waifu.get_today_waifu(user_id)
@@ -458,28 +465,30 @@ async def _cmd_waifu(
                     _waifu_text(existing, "你今天已经抽过啦，明天再来（重复展示今日老婆）"),
                 )
             )
-        character = await vndb.random_female_character()
+        settings = waifu.load_settings()
+        character = await vndb.random_female_character(**settings)
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character)
+        note = _waifu_filter_note(settings)
         await matcher.finish(
-            _message_with_image(record.get("image_url"), _waifu_text(record))
+            _message_with_image(record.get("image_url"), _waifu_text(record, note))
         )
         return
 
-    command, _, arg = value.partition(" ")
-    command = command.lower()
     if command == "reroll":
         if not is_admin:
             await matcher.finish("只有管理员可以更换每日老婆")
-        character = await vndb.random_female_character()
+        settings = waifu.load_settings()
+        character = await vndb.random_female_character(**settings)
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character)
+        note = _waifu_filter_note(settings)
         await matcher.finish(
             _message_with_image(
                 record.get("image_url"),
-                _waifu_text(record, "管理员已更换，这是你的新老婆"),
+                _waifu_text(record, "管理员已更换，这是你的新老婆" + (f"\n{note}" if note else "")),
             )
         )
     elif command == "set":
@@ -512,7 +521,76 @@ async def _cmd_waifu(
             )
         )
     else:
-        await matcher.finish("用法：/shou gal waifu [reroll|set <角色名>]")
+        await matcher.finish(
+            "用法：/shou gal waifu [reroll|set <角色名>|settings]"
+        )
+
+
+def _waifu_filter_note(settings: dict) -> str:
+    """把当前筛选条件拼成提示文本。"""
+    parts: list[str] = []
+    threshold = settings.get("popular_threshold") or 0
+    year_from = settings.get("year_from") or 0
+    year_to = settings.get("year_to") or 0
+    if threshold:
+        parts.append(f"热度≥{threshold}票")
+    if year_from or year_to:
+        parts.append(f"年代 {year_from or '不限'}-{year_to or '不限'}")
+    return "筛选：" + "、".join(parts) if parts else ""
+
+
+async def _handle_waifu_settings(
+    matcher: Matcher, event: MessageEvent, value: str
+) -> None:
+    """每日老婆筛选设置：热度（VNDB 作品投票数）与年代范围。"""
+    user_id = int(getattr(event, "user_id", 0))
+    parts = value.split() if value else []
+    action = parts[0].lower() if parts else ""
+
+    if not action:
+        await matcher.finish(waifu.settings_text(waifu.load_settings()))
+    if not permissions.is_admin(user_id):
+        await matcher.finish("只有管理员可以修改每日老婆设置")
+
+    settings = waifu.load_settings()
+    if action == "popular":
+        if len(parts) != 2 or not parts[1].isdigit() or not (0 <= int(parts[1]) <= 100000):
+            await matcher.finish(
+                "用法：/shou gal waifu settings popular <N>（0=关闭，最大 100000）"
+            )
+        settings["popular_threshold"] = int(parts[1])
+        waifu.save_settings(settings)
+        await matcher.finish(
+            f"已设置热度阈值：{settings['popular_threshold']}（0=关闭）"
+        )
+    if action == "year":
+        if len(parts) not in (2, 3):
+            await matcher.finish(
+                "用法：/shou gal waifu settings year <起始年> [结束年]（0=不限）"
+            )
+        try:
+            year_from = int(parts[1])
+            year_to = int(parts[2]) if len(parts) == 3 else 0
+        except ValueError:
+            await matcher.finish("年份必须是数字")
+        if not (
+            0 <= year_from <= 2100
+            and 0 <= year_to <= 2100
+            and (year_from == 0 or year_to == 0 or year_from <= year_to)
+        ):
+            await matcher.finish("年份范围无效（0=不限，且起始年不能大于结束年）")
+        settings["year_from"] = year_from
+        settings["year_to"] = year_to
+        waifu.save_settings(settings)
+        await matcher.finish(
+            f"已设置年代范围：{year_from or '不限'} - {year_to or '不限'}"
+        )
+    if action == "reset":
+        waifu.save_settings(waifu.default_settings())
+        await matcher.finish("每日老婆设置已重置（热度关闭、年代不限）")
+    await matcher.finish(
+        "用法：/shou gal waifu settings [popular <N>|year <起始年> [结束年]|reset]"
+    )
 
 
 async def _extract_image(

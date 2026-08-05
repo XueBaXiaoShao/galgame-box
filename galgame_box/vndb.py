@@ -148,38 +148,58 @@ async def find_character(character: str, work: str) -> list[VNDBCharacter]:
     ]
 
 
-_max_female_character_page: int | None = None
+def _waifu_filters(
+    *,
+    popular_threshold: int = 0,
+    year_from: int = 0,
+    year_to: int = 0,
+) -> list:
+    """每日老婆筛选条件：女性 + 可选热度（作品投票数）与发售年代范围。"""
+    filters: list = ["and", ["sex", "=", "f"]]
+    if popular_threshold and popular_threshold > 0:
+        filters.append(["vn", "=", ["votecount", ">=", popular_threshold]])
+    if year_from and year_from > 0:
+        filters.append(["vn", "=", ["released", ">=", f"{year_from}-01-01"]])
+    if year_to and year_to > 0:
+        filters.append(["vn", "=", ["released", "<=", f"{year_to}-12-31"]])
+    return filters
 
 
-async def _female_character_page_bound() -> int:
-    """用 VNDB 女性角色最大 ID 估算随机页上限（ID 基本连续）。"""
-    global _max_female_character_page
-    if _max_female_character_page is None:
-        try:
-            payload = {
-                "filters": ["sex", "=", "f"],
-                "fields": "id",
-                "sort": "id",
-                "reverse": True,
-                "results": 1,
-            }
-            results = (await _post("character", payload)).get("results") or []
-            if results:
-                _max_female_character_page = max(1, int(results[0]["id"][1:]))
-            else:
-                _max_female_character_page = 5000
-        except Exception:
-            _max_female_character_page = 5000
-    return _max_female_character_page
+async def _character_id_bound(filters: list) -> int:
+    """用当前筛选条件下最大角色 ID 估算随机页上限（ID 基本连续）。"""
+    payload = {
+        "filters": filters,
+        "fields": "id",
+        "sort": "id",
+        "reverse": True,
+        "results": 1,
+    }
+    try:
+        results = (await _post("character", payload)).get("results") or []
+        if results:
+            return max(1, int(results[0]["id"][1:]))
+    except Exception:
+        pass
+    return 5000
 
 
-async def random_female_character() -> VNDBCharacter | None:
-    """随机抽取一名有立绘的女性角色（每日老婆用）。"""
-    page_bound = await _female_character_page_bound()
+async def random_female_character(
+    *,
+    popular_threshold: int = 0,
+    year_from: int = 0,
+    year_to: int = 0,
+) -> VNDBCharacter | None:
+    """随机抽取一名有立绘的女性角色（每日老婆用，可带热度/年代筛选）。"""
+    filters = _waifu_filters(
+        popular_threshold=popular_threshold,
+        year_from=year_from,
+        year_to=year_to,
+    )
+    page_bound = await _character_id_bound(filters)
     for _ in range(8):
         page = random.randint(1, page_bound)
         payload = {
-            "filters": ["sex", "=", "f"],
+            "filters": filters,
             "fields": FIELDS["character"],
             "sort": "id",
             "results": 1,
@@ -202,7 +222,7 @@ async def random_female_character() -> VNDBCharacter | None:
     # 兜底：从首页前 100 名里随机挑一个
     try:
         payload = {
-            "filters": ["sex", "=", "f"],
+            "filters": filters,
             "fields": FIELDS["character"],
             "sort": "id",
             "results": 100,
