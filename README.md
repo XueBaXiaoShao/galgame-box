@@ -19,6 +19,7 @@
 | 标签推荐 | `/shou gal recommend <标签...>` | 按一个或多个标签推荐作品 |
 | 资源下载 | `/shou gal download <ID/关键词>` | 获取 TouchGal 资源下载链接 |
 | 出处识别 | `/shou gal find [图片链接]` | AnimeTrace 角色识别，并尝试在 VNDB 匹配 |
+| 每日老婆 | `/shou gal waifu` | 每位用户每天一次，随机抽取 VNDB 女性角色；管理员可 `waifu reroll` 更换或 `waifu set <角色名>` 指定 |
 | 每日推送 | 定时任务 | 每天定时向配置的群推送今日简讯 |
 
 搜索类命令（`vn`/`character`/`producer`/`event`/`recommend`/`download`）
@@ -28,6 +29,14 @@
 /shou gal character ムラサメ limits 1
 /shou gal vn 千恋万花 limits 3
 ```
+
+### 每日老婆
+
+- `/shou gal waifu`：所有用户可用，每位用户每天只能抽取一次；当天再次调用会重复展示今日结果；
+- `/shou gal waifu reroll`：仅管理员，重新随机抽取并覆盖今日结果；
+- `/shou gal waifu set <角色名或VNDB ID>`：仅管理员，直接指定今日老婆；
+- 管理员默认取 `GALGAME_ADMIN_IDS`，未配置时回退到 NoneBot 的 `SUPERUSERS`；
+- 每日老婆状态保存在 `GALGAME_DATA_DIR`（默认 `LOCALSTORE_DATA_DIR`，再回退 `data/`）。
 
 与参考项目的差异（适配 NoneBot 文本消息）：
 
@@ -79,6 +88,8 @@ nonebot.load_plugin("galgame_box")
 | `GALGAME_FIND_RESULTS` | `3` | 每个识别框最多展示的候选角色数 |
 | `GALGAME_PUSH_GROUPS` | 空 | 每日推送的群号，逗号或 JSON 数组，如 `111,222` |
 | `GALGAME_PUSH_TIME` | `07:00` | 每日推送时间 `HH:MM` |
+| `GALGAME_ADMIN_IDS` | 空 | 可更换每日老婆的管理员 QQ；未设置时回退 `SUPERUSERS` |
+| `GALGAME_DATA_DIR` | `data/` | 插件状态数据目录（每日老婆等） |
 
 ## 与 xqq-forwarder 的共存方式
 

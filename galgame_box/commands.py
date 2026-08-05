@@ -18,7 +18,7 @@ from nonebot.adapters.onebot.v11 import Bot, Message, MessageEvent, MessageSegme
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from . import animetrace, format as fmt, http, touchgal, vndb
+from . import animetrace, format as fmt, http, touchgal, vndb, waifu
 from .config import config
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
 
@@ -44,6 +44,7 @@ _SUB_MAP = {
     "recommend": "recommend",
     "download": "download",
     "find": "find",
+    "waifu": "waifu",
 }
 
 
@@ -106,6 +107,8 @@ async def handle_shou_gal(
             await _cmd_download(matcher, keyword, limit)
         elif sub == "find":
             await _cmd_find(bot, event, matcher, keyword)
+        elif sub == "waifu":
+            await _cmd_waifu(matcher, event, keyword)
     except (http.HttpError, RuntimeError, ValueError) as exc:
         logger.warning("galgame-box 命令执行失败：{}", exc)
         await matcher.finish(str(exc))
@@ -412,6 +415,93 @@ async def _cmd_find(
             segments.append(MessageSegment.text("\n".join(lines)))
             messages.append(Message(segments))
     await _send_messages(matcher, messages)
+
+
+def _waifu_text(record: dict, note: str = "") -> str:
+    lines = [
+        "【每日老婆】",
+        f"老婆：{record.get('original') or record.get('name') or '未知'}",
+        f"VNDB ID：{record.get('character_id')}",
+    ]
+    birthday = record.get("birthday")
+    if isinstance(birthday, list) and len(birthday) >= 2:
+        lines.append(f"生日：{birthday[0]}月{birthday[1]}日")
+    vns = record.get("vns") or []
+    if vns:
+        vn_list = [f"「{vn.get('title') or '?'}」（{vn.get('id')}）" for vn in vns]
+        lines.append(f"出场作品：{'、'.join(vn_list)}")
+    if note:
+        lines.append(note)
+    return "\n".join(lines)
+
+
+async def _cmd_waifu(
+    matcher: Matcher, event: MessageEvent, value: str
+) -> None:
+    """每日老婆：每人每天一次，管理员可 reroll / set。"""
+    user_id = int(getattr(event, "user_id", 0))
+    is_admin = user_id in config.admin_ids
+    value = (value or "").strip()
+
+    if not value:
+        existing = waifu.get_today_waifu(user_id)
+        if existing:
+            await matcher.finish(
+                _message_with_image(
+                    existing.get("image_url"),
+                    _waifu_text(existing, "你今天已经抽过啦，明天再来（重复展示今日老婆）"),
+                )
+            )
+        character = await vndb.random_female_character()
+        if character is None:
+            await matcher.finish("今天暂时抽不到老婆，请稍后再试")
+        record = waifu.save_waifu(user_id, character)
+        await matcher.finish(
+            _message_with_image(record.get("image_url"), _waifu_text(record))
+        )
+        return
+
+    command, _, arg = value.partition(" ")
+    command = command.lower()
+    if command == "reroll":
+        if not is_admin:
+            await matcher.finish("只有管理员可以更换每日老婆")
+        character = await vndb.random_female_character()
+        if character is None:
+            await matcher.finish("更换失败，请稍后再试")
+        record = waifu.save_waifu(user_id, character)
+        await matcher.finish(
+            _message_with_image(
+                record.get("image_url"),
+                _waifu_text(record, "管理员已更换，这是你的新老婆"),
+            )
+        )
+    elif command == "set":
+        if not is_admin:
+            await matcher.finish("只有管理员可以指定每日老婆")
+        keyword = arg.strip()
+        if not keyword:
+            await matcher.finish("用法：/shou gal waifu set <角色名或VNDB ID>")
+        if re.match(r"^c\d+$", keyword, re.IGNORECASE):
+            try:
+                result = await vndb.get_by_id(keyword.lower())
+                character = result if isinstance(result, VNDBCharacter) else None
+            except Exception:
+                character = None
+        else:
+            items = await vndb.search_character(keyword, 1)
+            character = items[0] if items else None
+        if character is None:
+            await matcher.finish(f"未找到角色：{keyword}")
+        record = waifu.save_waifu(user_id, character)
+        await matcher.finish(
+            _message_with_image(
+                record.get("image_url"),
+                _waifu_text(record, "已设置为你的老婆"),
+            )
+        )
+    else:
+        await matcher.finish("用法：/shou gal waifu [reroll|set <角色名>]")
 
 
 async def _extract_image(

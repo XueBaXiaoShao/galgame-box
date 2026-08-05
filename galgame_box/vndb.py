@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from typing import Any
 
 from . import http
@@ -145,3 +146,70 @@ async def find_character(character: str, work: str) -> list[VNDBCharacter]:
         VNDBCharacter.model_validate(item)
         for item in (await _post("character", payload)).get("results", [])
     ]
+
+
+_max_female_character_page: int | None = None
+
+
+async def _female_character_page_bound() -> int:
+    """用 VNDB 女性角色最大 ID 估算随机页上限（ID 基本连续）。"""
+    global _max_female_character_page
+    if _max_female_character_page is None:
+        try:
+            payload = {
+                "filters": ["sex", "=", "f"],
+                "fields": "id",
+                "sort": "id",
+                "reverse": True,
+                "results": 1,
+            }
+            results = (await _post("character", payload)).get("results") or []
+            if results:
+                _max_female_character_page = max(1, int(results[0]["id"][1:]))
+            else:
+                _max_female_character_page = 5000
+        except Exception:
+            _max_female_character_page = 5000
+    return _max_female_character_page
+
+
+async def random_female_character() -> VNDBCharacter | None:
+    """随机抽取一名有立绘的女性角色（每日老婆用）。"""
+    page_bound = await _female_character_page_bound()
+    for _ in range(8):
+        page = random.randint(1, page_bound)
+        payload = {
+            "filters": ["sex", "=", "f"],
+            "fields": FIELDS["character"],
+            "sort": "id",
+            "results": 1,
+            "page": page,
+        }
+        try:
+            results = (await _post("character", payload)).get("results") or []
+        except Exception:
+            continue
+        if not results:
+            continue
+        character = VNDBCharacter.model_validate(results[0])
+        if character.image and character.image.url:
+            return character
+    # 兜底：从首页前 100 名里随机挑一个
+    try:
+        payload = {
+            "filters": ["sex", "=", "f"],
+            "fields": FIELDS["character"],
+            "sort": "id",
+            "results": 100,
+        }
+        results = (await _post("character", payload)).get("results") or []
+        candidates = [
+            VNDBCharacter.model_validate(item)
+            for item in results
+            if item.get("image") and item.get("image", {}).get("url")
+        ]
+        if candidates:
+            return random.choice(candidates)
+    except Exception:
+        pass
+    return None

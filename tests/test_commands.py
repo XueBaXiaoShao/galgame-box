@@ -58,7 +58,7 @@ async def test_vn_handler_applies_limits(monkeypatch) -> None:
         return []
 
     monkeypatch.setattr(commands.vndb, "search_vn", fake_search)
-    await commands._cmd_vn(_FakeMatcher(), "千恋万花", 1)
+    await _run(commands._cmd_vn(_FakeMatcher(), "千恋万花", 1))
     assert calls == [("千恋万花", 1)]
 
 
@@ -70,7 +70,7 @@ async def test_character_handler_defaults_to_config_limit(monkeypatch) -> None:
         return []
 
     monkeypatch.setattr(commands.vndb, "search_character", fake_search)
-    await commands._cmd_character(_FakeMatcher(), "ムラサメ")
+    await _run(commands._cmd_character(_FakeMatcher(), "ムラサメ"))
     assert calls == [("ムラサメ", commands.config.search_limit)]
 
 
@@ -110,3 +110,15 @@ class _FakeMatcher:
     async def finish(self, message=None) -> None:
         if message is not None:
             self.sent.append(message)
+        raise _Stop()
+
+
+class _Stop(Exception):
+    """模拟真实 matcher.finish 中断执行。"""
+
+
+async def _run(coro) -> None:
+    try:
+        await coro
+    except _Stop:
+        pass
