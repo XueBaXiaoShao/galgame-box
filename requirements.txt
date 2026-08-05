@@ -1,0 +1,11 @@
+nonebot2[fastapi]>=2.4.0
+nonebot-adapter-onebot>=2.4.0
+httpx>=0.27
+beautifulsoup4>=4.12
+pydantic>=2.0
+Pillow>=10.0
+# Python 3.9 下 pydantic 需要它才能解析 `X | Y` 类型注解
+eval_type_backport>=0.2.0; python_version < "3.10"
+
+# TouchGal 遇到 Cloudflare 反爬时自动降级使用（可选）
+# curl_cffi>=0.7
