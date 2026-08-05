@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 from datetime import datetime
@@ -440,12 +441,30 @@ def _is_female_character(character: VNDBCharacter) -> bool:
     return bool(character.sex and character.sex[0] == "f")
 
 
+def _runtime_admin_ids() -> set[int]:
+    """读取与 x_admin 共用的运行时管理员文件（/shou admin add/remove 写入）。"""
+    try:
+        path = Path(config.data_dir) / "admin_ids.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    admins = payload.get("admins") if isinstance(payload, dict) else None
+    if isinstance(admins, list):
+        return {int(item) for item in admins if str(item).strip().isdigit()}
+    return set()
+
+
+def _is_waifu_admin(user_id: int) -> bool:
+    """管理员 = 环境配置（GALGAME_ADMIN_IDS/X_ADMIN_IDS/SUPERUSERS）+ 运行时增删。"""
+    return user_id in config.admin_ids or user_id in _runtime_admin_ids()
+
+
 async def _cmd_waifu(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
     """每日老婆：每人每天一次，管理员可 reroll / set。"""
     user_id = int(getattr(event, "user_id", 0))
-    is_admin = user_id in config.admin_ids
+    is_admin = _is_waifu_admin(user_id)
     value = (value or "").strip()
 
     if not value:

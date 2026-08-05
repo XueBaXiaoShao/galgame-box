@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from galgame_box import commands, vndb, waifu
 from galgame_box.models import Image, VNDBCharacter
 
@@ -130,6 +132,30 @@ async def test_waifu_non_admin_cannot_reroll(monkeypatch, tmp_path) -> None:
 
     assert called is False
     assert "只有管理员可以更换每日老婆" in str(matcher.sent[-1])
+
+
+async def test_waifu_admin_added_via_shou_admin_file(
+    monkeypatch, tmp_path
+) -> None:
+    """通过 /shou admin add 持久化的管理员在 galgame-box 同样生效。"""
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    (tmp_path / "admin_ids.json").write_text(
+        json.dumps({"version": 1, "admins": [777]}), encoding="utf-8"
+    )
+    called = False
+
+    async def fake_random():
+        nonlocal called
+        called = True
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(777), "reroll"))
+
+    assert called is True
+    assert "VNDB ID：c9" in str(matcher.sent[-1])
 
 
 async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:

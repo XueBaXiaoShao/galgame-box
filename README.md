@@ -36,8 +36,9 @@
 - `/shou gal waifu reroll`：仅管理员，重新随机抽取并覆盖今日结果；
 - `/shou gal waifu set <角色名或c开头的VNDB ID>`：仅管理员，直接指定今日老婆；
 - 只接受 VNDB 性别为女性的角色，随机抽取与管理员指定都会校验；
-- 管理员默认取 `GALGAME_ADMIN_IDS`，未配置时依次回退 `X_ADMIN_IDS`（与 x_admin
-  共用管理员名单）与 NoneBot 的 `SUPERUSERS`；
+- 管理员 = `GALGAME_ADMIN_IDS`（未配置时回退 `X_ADMIN_IDS` 再回退 `SUPERUSERS`）
+  加上 `admin_ids.json` 中由 `/shou admin add/remove` 运行时增删的名单，与
+  x_admin 完全共用；
 - 每日老婆状态保存在 `GALGAME_DATA_DIR`（默认 `LOCALSTORE_DATA_DIR`，再回退 `data/`）。
 
 与参考项目的差异（适配 NoneBot 文本消息）：
