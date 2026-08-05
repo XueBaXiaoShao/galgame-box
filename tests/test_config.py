@@ -48,3 +48,26 @@ def test_env_int_list_supports_comma_and_json(monkeypatch) -> None:
 
     monkeypatch.setenv("GALGAME_PUSH_GROUPS", "bad")
     assert _env_int_list("GALGAME_PUSH_GROUPS") == []
+
+
+def test_admin_ids_share_x_admin_when_not_configured(monkeypatch) -> None:
+    monkeypatch.delenv("GALGAME_ADMIN_IDS", raising=False)
+    monkeypatch.setenv("X_ADMIN_IDS", "111,222")
+    monkeypatch.delenv("SUPERUSERS", raising=False)
+
+    assert Config.from_env().admin_ids == [111, 222]
+
+
+def test_admin_ids_prefer_galgame_setting(monkeypatch) -> None:
+    monkeypatch.setenv("GALGAME_ADMIN_IDS", "999")
+    monkeypatch.setenv("X_ADMIN_IDS", "111,222")
+
+    assert Config.from_env().admin_ids == [999]
+
+
+def test_admin_ids_fall_back_to_superusers(monkeypatch) -> None:
+    monkeypatch.delenv("GALGAME_ADMIN_IDS", raising=False)
+    monkeypatch.delenv("X_ADMIN_IDS", raising=False)
+    monkeypatch.setenv("SUPERUSERS", '["333"]')
+
+    assert Config.from_env().admin_ids == [333]

@@ -109,6 +109,7 @@ class Config:
             push_time=_env_str("GALGAME_PUSH_TIME", "07:00"),
             admin_ids=(
                 _env_int_list("GALGAME_ADMIN_IDS")
+                or _env_int_list("X_ADMIN_IDS")
                 or _env_int_list("SUPERUSERS")
             ),
             data_dir=(
