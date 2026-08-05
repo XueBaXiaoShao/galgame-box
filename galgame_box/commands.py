@@ -31,6 +31,9 @@ def _is_gal_event(event: MessageEvent) -> bool:
 
 shou_gal = on_command("shou", rule=_is_gal_event, priority=1, block=True)
 
+_LIMITS_RE = re.compile(r"(?i)\blimits?\s+(\d{1,4})\s*$")
+_MAX_LIMIT = 50
+
 _SUB_MAP = {
     "vn": "vn",
     "character": "character",
@@ -55,6 +58,18 @@ def parse_subcommand(text: str) -> tuple[str | None, str]:
     return sub, rest
 
 
+def parse_limits(text: str) -> tuple[str, int | None]:
+    """解析尾缀 `limits <N>`；返回（去掉尾缀的文本, 条数或 None）。"""
+    text = (text or "").strip()
+    match = _LIMITS_RE.search(text)
+    if not match:
+        return text, None
+    limit = int(match.group(1))
+    if limit < 1:
+        return text[: match.start()].strip(), None
+    return text[: match.start()].strip(), min(limit, _MAX_LIMIT)
+
+
 @shou_gal.handle()
 async def handle_shou_gal(
     bot: Bot,
@@ -68,28 +83,29 @@ async def handle_shou_gal(
         # 非 gal 子命令，放行给 x_admin 处理
         return
     sub, rest = parse_subcommand(parts[1] if len(parts) > 1 else "")
+    keyword, limit = parse_limits(rest)
 
     try:
         if sub is None:
             await matcher.finish(fmt.help_text())
         elif sub == "vn":
-            await _cmd_vn(matcher, rest)
+            await _cmd_vn(matcher, keyword, limit)
         elif sub == "character":
-            await _cmd_character(matcher, rest)
+            await _cmd_character(matcher, keyword, limit)
         elif sub == "producer":
-            await _cmd_producer(matcher, rest)
+            await _cmd_producer(matcher, keyword, limit)
         elif sub == "id":
-            await _cmd_id(matcher, rest)
+            await _cmd_id(matcher, keyword)
         elif sub == "event":
-            await _cmd_event(matcher, rest)
+            await _cmd_event(matcher, keyword, limit)
         elif sub == "random":
             await _cmd_random(matcher)
         elif sub == "recommend":
-            await _cmd_recommend(matcher, rest)
+            await _cmd_recommend(matcher, keyword, limit)
         elif sub == "download":
-            await _cmd_download(matcher, rest)
+            await _cmd_download(matcher, keyword, limit)
         elif sub == "find":
-            await _cmd_find(bot, event, matcher, rest)
+            await _cmd_find(bot, event, matcher, keyword)
     except (http.HttpError, RuntimeError, ValueError) as exc:
         logger.warning("galgame-box 命令执行失败：{}", exc)
         await matcher.finish(str(exc))
@@ -120,10 +136,10 @@ def _message_with_image(image_url: str | None, text: str) -> Message:
     return Message(segments)
 
 
-async def _cmd_vn(matcher: Matcher, keyword: str) -> None:
+async def _cmd_vn(matcher: Matcher, keyword: str, limit: int | None = None) -> None:
     if not keyword:
         await matcher.finish("请输入作品名，例如：/shou gal vn 苍之彼方的四重奏")
-    items = await vndb.search_vn(keyword, config.search_limit)
+    items = await vndb.search_vn(keyword, limit or config.search_limit)
     if not items:
         await matcher.finish(f"未搜索到作品：{keyword}")
     messages = [
@@ -133,10 +149,12 @@ async def _cmd_vn(matcher: Matcher, keyword: str) -> None:
     await _send_messages(matcher, messages)
 
 
-async def _cmd_character(matcher: Matcher, keyword: str) -> None:
+async def _cmd_character(
+    matcher: Matcher, keyword: str, limit: int | None = None
+) -> None:
     if not keyword:
         await matcher.finish("请输入角色名，例如：/shou gal character 鸢泽美咲")
-    items = await vndb.search_character(keyword, config.search_limit)
+    items = await vndb.search_character(keyword, limit or config.search_limit)
     if not items:
         await matcher.finish(f"未搜索到角色：{keyword}")
     messages = [
@@ -148,10 +166,12 @@ async def _cmd_character(matcher: Matcher, keyword: str) -> None:
     await _send_messages(matcher, messages)
 
 
-async def _cmd_producer(matcher: Matcher, keyword: str) -> None:
+async def _cmd_producer(
+    matcher: Matcher, keyword: str, limit: int | None = None
+) -> None:
     if not keyword:
         await matcher.finish("请输入厂商名，例如：/shou gal producer Key")
-    producers = await vndb.search_producer(keyword, 3)
+    producers = await vndb.search_producer(keyword, limit or 3)
     if not producers:
         await matcher.finish(f"未搜索到厂商：{keyword}")
     messages: list[Message] = []
@@ -191,7 +211,9 @@ async def _cmd_id(matcher: Matcher, value: str) -> None:
         await matcher.finish(Message(MessageSegment.text(text)))
 
 
-async def _cmd_event(matcher: Matcher, value: str) -> None:
+async def _cmd_event(
+    matcher: Matcher, value: str, limit: int | None = None
+) -> None:
     now = datetime.now()
     month, day = now.month, now.day
     if value:
@@ -205,14 +227,15 @@ async def _cmd_event(matcher: Matcher, value: str) -> None:
             await matcher.finish("日期格式错误，应为「月-日」，例如：8-5")
 
     vns, characters = await vndb.today_events(month, day, config.event_rating)
+    show_limit = limit or config.event_limit
     lines = [f"【历史上的今天】{fmt.weekday_text(month, day)}"]
     if vns:
         lines.append("今天发售的作品：")
-        for vn in vns[: config.event_limit]:
+        for vn in vns[:show_limit]:
             lines.append(fmt.fmt_vn(vn))
     if characters:
         lines.append("今天生日的角色：")
-        for character in characters[: config.event_limit]:
+        for character in characters[:show_limit]:
             lines.append(
                 fmt.fmt_character(character, with_vns=False, with_name=False)
             )
@@ -258,14 +281,16 @@ async def _cmd_random(matcher: Matcher) -> None:
     await matcher.finish(Message(segments))
 
 
-async def _cmd_recommend(matcher: Matcher, tags: str) -> None:
+async def _cmd_recommend(
+    matcher: Matcher, tags: str, limit: int | None = None
+) -> None:
     if not tags:
         await matcher.finish(
             "请输入至少一个标签，例如：/shou gal recommend 恋爱 校园"
         )
     items, total = await touchgal.search(
         tags,
-        limit=config.recommend_count,
+        limit=limit or config.recommend_count,
         search_in_tag=True,
         search_in_alias=False,
     )
@@ -287,7 +312,9 @@ async def _cmd_recommend(matcher: Matcher, tags: str) -> None:
     await _send_messages(matcher, messages)
 
 
-async def _cmd_download(matcher: Matcher, value: str) -> None:
+async def _cmd_download(
+    matcher: Matcher, value: str, limit: int | None = None
+) -> None:
     if not value:
         await matcher.finish(
             "请输入 TouchGal ID / VNDB ID / 关键词，例如：/shou gal download 12345"
@@ -296,7 +323,7 @@ async def _cmd_download(matcher: Matcher, value: str) -> None:
     if value.isdigit():
         touchgal_id = int(value)
     else:
-        items, total = await touchgal.search(value, limit=6)
+        items, total = await touchgal.search(value, limit=limit or 6)
         if not items:
             await matcher.finish(f"未找到相关内容：{value}")
         if total == 1 and len(items) == 1:

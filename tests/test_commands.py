@@ -40,6 +40,40 @@ def test_is_gal_event_only_matches_shou_gal() -> None:
     assert commands._is_gal_event(_fake_event("你好")) is False
 
 
+def test_parse_limits_trailing_suffix() -> None:
+    assert commands.parse_limits("ムラサメ limits 1") == ("ムラサメ", 1)
+    assert commands.parse_limits("千恋万花 limit 3") == ("千恋万花", 3)
+    assert commands.parse_limits("key LIMITS 5") == ("key", 5)
+    assert commands.parse_limits("无限制") == ("无限制", None)
+    assert commands.parse_limits("abc limits 0") == ("abc", None)
+    assert commands.parse_limits("abc limits 999") == ("abc", 50)
+    assert commands.parse_limits("abc limits 1 extra") == ("abc limits 1 extra", None)
+
+
+async def test_vn_handler_applies_limits(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+
+    async def fake_search(keyword: str, limit: int):
+        calls.append((keyword, limit))
+        return []
+
+    monkeypatch.setattr(commands.vndb, "search_vn", fake_search)
+    await commands._cmd_vn(_FakeMatcher(), "千恋万花", 1)
+    assert calls == [("千恋万花", 1)]
+
+
+async def test_character_handler_defaults_to_config_limit(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+
+    async def fake_search(keyword: str, limit: int):
+        calls.append((keyword, limit))
+        return []
+
+    monkeypatch.setattr(commands.vndb, "search_character", fake_search)
+    await commands._cmd_character(_FakeMatcher(), "ムラサメ")
+    assert calls == [("ムラサメ", commands.config.search_limit)]
+
+
 def test_message_with_image_uses_url_or_base64() -> None:
     url_message = commands._message_with_image(
         "https://img.example/a.jpg", "text"
@@ -64,3 +98,15 @@ def _fake_event(text: str):
             return self._value
 
     return FakeEvent(text)
+
+
+class _FakeMatcher:
+    def __init__(self) -> None:
+        self.sent: list = []
+
+    async def send(self, message) -> None:
+        self.sent.append(message)
+
+    async def finish(self, message=None) -> None:
+        if message is not None:
+            self.sent.append(message)

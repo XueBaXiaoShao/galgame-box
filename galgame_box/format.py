@@ -186,4 +186,7 @@ def help_text() -> str:
 - /shou gal random —— 随机一部 TouchGal 作品
 - /shou gal recommend <标签...> —— 按标签推荐作品
 - /shou gal download <ID/关键词> —— 获取资源链接
-- /shou gal find [图片链接] —— AnimeTrace 角色识别"""
+- /shou gal find [图片链接] —— AnimeTrace 角色识别
+
+搜索类命令（vn/character/producer/event/recommend/download）可在末尾追加
+limits <N> 控制本次返回条数，例如：/shou gal character ムラサメ limits 1"""

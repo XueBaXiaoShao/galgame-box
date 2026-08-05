@@ -21,6 +21,14 @@
 | 出处识别 | `/shou gal find [图片链接]` | AnimeTrace 角色识别，并尝试在 VNDB 匹配 |
 | 每日推送 | 定时任务 | 每天定时向配置的群推送今日简讯 |
 
+搜索类命令（`vn`/`character`/`producer`/`event`/`recommend`/`download`）
+可在末尾追加 `limits <N>` 覆盖本次返回条数（上限 50），例如：
+
+```
+/shou gal character ムラサメ limits 1
+/shou gal vn 千恋万花 limits 3
+```
+
 与参考项目的差异（适配 NoneBot 文本消息）：
 
 - 结果以文本 + 图片形式返回，不依赖 AstrBot 的 HTML 渲染服务；
