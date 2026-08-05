@@ -83,8 +83,6 @@ class Config:
     # 每日简讯推送（为空不推送）
     push_groups: list[int] = field(default_factory=list)
     push_time: str = "07:00"
-    # 每日老婆：可更换老婆的管理员 QQ；未配置时回退到 SUPERUSERS
-    admin_ids: list[int] = field(default_factory=list)
     # 插件数据目录（每日老婆状态等）；未配置时回退 LOCALSTORE_DATA_DIR
     data_dir: str = "data"
 
@@ -107,11 +105,6 @@ class Config:
             find_results=_env_int("GALGAME_FIND_RESULTS", 3),
             push_groups=_env_int_list("GALGAME_PUSH_GROUPS"),
             push_time=_env_str("GALGAME_PUSH_TIME", "07:00"),
-            admin_ids=(
-                _env_int_list("GALGAME_ADMIN_IDS")
-                or _env_int_list("X_ADMIN_IDS")
-                or _env_int_list("SUPERUSERS")
-            ),
             data_dir=(
                 _env_str("GALGAME_DATA_DIR")
                 or _env_str("LOCALSTORE_DATA_DIR")

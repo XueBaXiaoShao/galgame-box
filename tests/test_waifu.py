@@ -22,6 +22,12 @@ def _character(
     )
 
 
+def _write_admins(tmp_path, ids: list[int]) -> None:
+    (tmp_path / "admin_ids.json").write_text(
+        json.dumps({"version": 2, "admins": ids}), encoding="utf-8"
+    )
+
+
 def test_waifu_state_round_trip(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
 
@@ -100,7 +106,7 @@ async def test_waifu_once_per_day(monkeypatch, tmp_path) -> None:
 
 async def test_waifu_admin_reroll(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    _write_admins(tmp_path, [999])
     picks = [_character("c1"), _character("c2")]
 
     async def fake_random():
@@ -118,7 +124,7 @@ async def test_waifu_admin_reroll(monkeypatch, tmp_path) -> None:
 
 async def test_waifu_non_admin_cannot_reroll(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    _write_admins(tmp_path, [999])
     called = False
 
     async def fake_random():
@@ -139,10 +145,7 @@ async def test_waifu_admin_added_via_shou_admin_file(
 ) -> None:
     """通过 /shou admin add 持久化的管理员在 galgame-box 同样生效。"""
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
-    (tmp_path / "admin_ids.json").write_text(
-        json.dumps({"version": 1, "admins": [777]}), encoding="utf-8"
-    )
+    _write_admins(tmp_path, [777])
     called = False
 
     async def fake_random():
@@ -160,7 +163,7 @@ async def test_waifu_admin_added_via_shou_admin_file(
 
 async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    _write_admins(tmp_path, [999])
 
     async def fake_search(keyword, limit):
         return [_character("c88", name="ムラサメ")]
@@ -175,7 +178,7 @@ async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:
 
 async def test_waifu_admin_set_by_vndb_id(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    _write_admins(tmp_path, [999])
 
     async def fake_get_by_id(vndb_id: str):
         return _character("c77", name="指定角色")
@@ -190,7 +193,7 @@ async def test_waifu_admin_set_by_vndb_id(monkeypatch, tmp_path) -> None:
 
 async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
-    monkeypatch.setattr(commands.config, "admin_ids", [999])
+    _write_admins(tmp_path, [999])
 
     async def fake_search(keyword, limit):
         return [_character("c66", name="男角色", sex=["m"])]

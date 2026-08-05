@@ -36,9 +36,9 @@
 - `/shou gal waifu reroll`：仅管理员，重新随机抽取并覆盖今日结果；
 - `/shou gal waifu set <角色名或c开头的VNDB ID>`：仅管理员，直接指定今日老婆；
 - 只接受 VNDB 性别为女性的角色，随机抽取与管理员指定都会校验；
-- 管理员 = `GALGAME_ADMIN_IDS`（未配置时回退 `X_ADMIN_IDS` 再回退 `SUPERUSERS`）
-  加上 `admin_ids.json` 中由 `/shou admin add/remove` 运行时增删的名单，与
-  x_admin 完全共用；
+- 管理员只读取 `admin_ids.json`（不读环境变量），与 x_admin 完全共用；
+- 文件格式：`{"version": 2, "admins": [123456789]}`，可由 `/shou admin add/remove`
+  维护，或直接编辑文件。
 - 每日老婆状态保存在 `GALGAME_DATA_DIR`（默认 `LOCALSTORE_DATA_DIR`，再回退 `data/`）。
 
 与参考项目的差异（适配 NoneBot 文本消息）：
@@ -91,7 +91,6 @@ nonebot.load_plugin("galgame_box")
 | `GALGAME_FIND_RESULTS` | `3` | 每个识别框最多展示的候选角色数 |
 | `GALGAME_PUSH_GROUPS` | 空 | 每日推送的群号，逗号或 JSON 数组，如 `111,222` |
 | `GALGAME_PUSH_TIME` | `07:00` | 每日推送时间 `HH:MM` |
-| `GALGAME_ADMIN_IDS` | 空 | 可更换每日老婆的管理员 QQ；未设置时回退 `X_ADMIN_IDS`（与 x_admin 共用）再回退 `SUPERUSERS` |
 | `GALGAME_DATA_DIR` | `data/` | 插件状态数据目录（每日老婆等） |
 
 ## 与 xqq-forwarder 的共存方式
