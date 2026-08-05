@@ -435,6 +435,11 @@ def _waifu_text(record: dict, note: str = "") -> str:
     return "\n".join(lines)
 
 
+def _is_female_character(character: VNDBCharacter) -> bool:
+    """只有对外性别为女性的角色才能当老婆。"""
+    return bool(character.sex and character.sex[0] == "f")
+
+
 async def _cmd_waifu(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
@@ -493,6 +498,11 @@ async def _cmd_waifu(
             character = items[0] if items else None
         if character is None:
             await matcher.finish(f"未找到角色：{keyword}")
+        if not _is_female_character(character):
+            await matcher.finish(
+                f"角色「{character.original or character.name}」不是女性，"
+                "不能作为老婆"
+            )
         record = waifu.save_waifu(user_id, character)
         await matcher.finish(
             _message_with_image(

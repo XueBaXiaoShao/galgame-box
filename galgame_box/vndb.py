@@ -192,7 +192,12 @@ async def random_female_character() -> VNDBCharacter | None:
         if not results:
             continue
         character = VNDBCharacter.model_validate(results[0])
-        if character.image and character.image.url:
+        if (
+            character.image
+            and character.image.url
+            and (character.sex or [])
+            and character.sex[0] == "f"
+        ):
             return character
     # 兜底：从首页前 100 名里随机挑一个
     try:
@@ -206,7 +211,10 @@ async def random_female_character() -> VNDBCharacter | None:
         candidates = [
             VNDBCharacter.model_validate(item)
             for item in results
-            if item.get("image") and item.get("image", {}).get("url")
+            if item.get("image")
+            and item.get("image", {}).get("url")
+            and (item.get("sex") or [])
+            and item["sex"][0] == "f"
         ]
         if candidates:
             return random.choice(candidates)

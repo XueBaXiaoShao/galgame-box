@@ -34,7 +34,8 @@
 
 - `/shou gal waifu`：所有用户可用，每位用户每天只能抽取一次；当天再次调用会重复展示今日结果；
 - `/shou gal waifu reroll`：仅管理员，重新随机抽取并覆盖今日结果；
-- `/shou gal waifu set <角色名或VNDB ID>`：仅管理员，直接指定今日老婆；
+- `/shou gal waifu set <角色名或c开头的VNDB ID>`：仅管理员，直接指定今日老婆；
+- 只接受 VNDB 性别为女性的角色，随机抽取与管理员指定都会校验；
 - 管理员默认取 `GALGAME_ADMIN_IDS`，未配置时回退到 NoneBot 的 `SUPERUSERS`；
 - 每日老婆状态保存在 `GALGAME_DATA_DIR`（默认 `LOCALSTORE_DATA_DIR`，再回退 `data/`）。
 

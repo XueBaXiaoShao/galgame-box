@@ -6,12 +6,15 @@ from galgame_box import commands, vndb, waifu
 from galgame_box.models import Image, VNDBCharacter
 
 
-def _character(char_id: str = "c1", name: str = "Hero") -> VNDBCharacter:
+def _character(
+    char_id: str = "c1", name: str = "Hero", sex: list[str] | None = None
+) -> VNDBCharacter:
     return VNDBCharacter(
         id=char_id,
         name=name,
         original="ヒーロー",
         birthday=[8, 5],
+        sex=sex if sex is not None else ["f"],
         image=Image(url="https://s.vndb.org/1.jpg"),
         vns=[{"id": "v1", "title": "Game"}],
     )
@@ -46,6 +49,28 @@ async def test_random_female_character_retries_empty_pages(monkeypatch) -> None:
 
     assert character is not None
     assert character.id == "c42"
+
+
+async def test_random_female_character_skips_male(monkeypatch) -> None:
+    calls = []
+
+    async def fake_post(path, payload):
+        calls.append(payload)
+        if payload.get("reverse"):
+            return {"results": [{"id": "c50000"}]}
+        if payload.get("page") is not None:
+            male = _character("c1", name="Male", sex=["m"])
+            female = _character("c2", name="Female")
+            result = male if len([p for p in calls if p.get("page")]) == 1 else female
+            return {"results": [result.model_dump()]}
+        return {"results": []}
+
+    monkeypatch.setattr(vndb, "_post", fake_post)
+    character = await vndb.random_female_character()
+
+    assert character is not None
+    assert character.id == "c2"
+    assert len([p for p in calls if p.get("page")]) == 2
 
 
 async def test_waifu_once_per_day(monkeypatch, tmp_path) -> None:
@@ -120,6 +145,36 @@ async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:
 
     assert "VNDB ID：c88" in str(matcher.sent[-1])
     assert waifu.get_today_waifu(999)["character_id"] == "c88"
+
+
+async def test_waifu_admin_set_by_vndb_id(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(commands.config, "admin_ids", [999])
+
+    async def fake_get_by_id(vndb_id: str):
+        return _character("c77", name="指定角色")
+
+    monkeypatch.setattr(vndb, "get_by_id", fake_get_by_id)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set c77"))
+
+    assert "VNDB ID：c77" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(999)["character_id"] == "c77"
+
+
+async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(commands.config, "admin_ids", [999])
+
+    async def fake_search(keyword, limit):
+        return [_character("c66", name="男角色", sex=["m"])]
+
+    monkeypatch.setattr(vndb, "search_character", fake_search)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set 男角色"))
+
+    assert "不是女性" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(999) is None
 
 
 def test_parse_subcommand_waifu() -> None:
