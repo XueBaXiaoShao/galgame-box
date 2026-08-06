@@ -190,8 +190,9 @@ def help_text() -> str:
 - /shou gal waifu —— 每日老婆（仅女性角色，每人每天一次；管理员可 waifu
   reroll 换一个，或 waifu set <角色名/c开头的VNDB ID> 指定）
 - /shou gal waifu settings —— 查看/修改每日老婆筛选（热度、年代；仅管理员可改）
-- /shou gal waifu settings company <会社key,key...> —— 按会社筛选（含旗下品牌，
-  off=关闭；可选列表见 settings company）
+- /shou gal waifu settings company —— 查看可选会社
+- /shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 给指定群设置
+  会社后门（含旗下品牌；仅管理员）
 - /waifu —— 每日老婆简化入口（等价 /shou gal waifu，reroll/set/settings/reset 同样可用）
 - /waifu reset [all|<QQ号>] —— 重置每日老婆（全部或单个用户，仅管理员）
 

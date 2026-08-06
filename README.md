@@ -59,9 +59,10 @@
   （0=关闭热度筛选）；
 - `/shou gal waifu settings year <起始年> [结束年]`：只抽指定发售年代区间内的
   作品角色（0=不限，如 `year 2000 2010`）；
-- `/shou gal waifu settings company <会社key,key...>`：只抽指定会社（含旗下品牌）
-  作品里的角色，如 `company yuzusoft` 或 `company yuzusoft,smee`；`company off`
-  关闭。可用 `settings company` 查看全部可选会社；
+- `/shou gal waifu settings group=<群号> kaisha=<会社key|off>`：给指定群设置会社
+  后门，只抽该会社（含旗下品牌）作品里的角色，例如
+  `group=275770691 kaisha=yuzusoft`；`kaisha=off` 清除；`settings company` 查看
+  全部可选会社；
 - `/shou gal waifu settings reset`：恢复默认（热度关闭、年代不限）；
 - 设置持久化在 `data/waifu_settings.json`，只允许 `admin_ids.json` 权限组中的
   管理员修改，查看对所有人开放。

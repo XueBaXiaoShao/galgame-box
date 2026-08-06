@@ -61,8 +61,6 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
-        "companies": [],
-        "company_ids": [],
     }
     waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
 
@@ -70,8 +68,6 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 5000,
         "year_from": 2000,
         "year_to": 2010,
-        "companies": [],
-        "company_ids": [],
     }
 
 
@@ -311,8 +307,6 @@ async def test_waifu_settings_admin_reset(monkeypatch, tmp_path) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
-        "companies": [],
-        "company_ids": [],
     }
 
 
@@ -337,7 +331,7 @@ async def test_waifu_draw_uses_settings(monkeypatch, tmp_path) -> None:
     }
 
 
-async def test_waifu_settings_admin_sets_company(monkeypatch, tmp_path) -> None:
+async def test_waifu_group_backdoor_sets_company(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     _write_admins(tmp_path, [999])
 
@@ -347,16 +341,18 @@ async def test_waifu_settings_admin_sets_company(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(vndb, "resolve_company_ids", fake_resolve)
     matcher = _FakeMatcher()
     await _run(
-        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company yuzusoft")
+        commands._cmd_waifu(
+            matcher, _FakeEvent(999), "settings group=275770691 kaisha=yuzusoft"
+        )
     )
 
-    settings = waifu.load_settings()
-    assert settings["companies"] == ["yuzusoft"]
-    assert settings["company_ids"] == ["p98", "p12215"]
-    assert "已设置会社" in str(matcher.sent[-1])
+    group = waifu.get_group_company(275770691)
+    assert group["companies"] == ["yuzusoft"]
+    assert group["company_ids"] == ["p98", "p12215"]
+    assert "已设置会社后门" in str(matcher.sent[-1])
 
 
-async def test_waifu_settings_company_rejects_unknown_key(
+async def test_waifu_group_backdoor_requires_admin(
     monkeypatch, tmp_path
 ) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
@@ -364,34 +360,48 @@ async def test_waifu_settings_company_rejects_unknown_key(
 
     matcher = _FakeMatcher()
     await _run(
-        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company nosuch")
+        commands._cmd_waifu(
+            matcher, _FakeEvent(100), "settings group=275770691 kaisha=yuzusoft"
+        )
     )
 
-    assert "未知会社" in str(matcher.sent[-1])
-    assert waifu.load_settings()["companies"] == []
+    assert "只有管理员" in str(matcher.sent[-1])
+    assert waifu.get_group_company(275770691)["company_ids"] == []
 
 
-async def test_waifu_settings_company_off(monkeypatch, tmp_path) -> None:
+async def test_waifu_group_backdoor_off(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     _write_admins(tmp_path, [999])
-    waifu.save_settings(
-        {
-            "popular_threshold": 0,
-            "year_from": 0,
-            "year_to": 0,
-            "companies": ["yuzusoft"],
-            "company_ids": ["p98"],
-        }
+    waifu.save_group_company(
+        275770691, ["yuzusoft"], ["p98", "p12215"]
     )
 
     matcher = _FakeMatcher()
     await _run(
-        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company off")
+        commands._cmd_waifu(
+            matcher, _FakeEvent(999), "settings group=275770691 kaisha=off"
+        )
     )
 
-    settings = waifu.load_settings()
-    assert settings["companies"] == []
-    assert settings["company_ids"] == []
+    group = waifu.get_group_company(275770691)
+    assert group["companies"] == []
+    assert group["company_ids"] == []
+
+
+async def test_waifu_draw_uses_group_backdoor(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    waifu.save_group_company(275770691, ["yuzusoft"], ["p98", "p12215"])
+    captured: dict = {}
+
+    async def fake_random(**kwargs):
+        captured.update(kwargs)
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeGroupEvent(123, 275770691), ""))
+
+    assert captured["company_ids"] == ["p98", "p12215"]
 
 
 async def test_waifu_reset_requires_admin(monkeypatch, tmp_path) -> None:
@@ -442,6 +452,12 @@ def test_parse_subcommand_waifu() -> None:
 class _FakeEvent:
     def __init__(self, user_id: int) -> None:
         self.user_id = user_id
+
+
+class _FakeGroupEvent(_FakeEvent):
+    def __init__(self, user_id: int, group_id: int) -> None:
+        super().__init__(user_id)
+        self.group_id = group_id
 
 
 class _FakeMatcher:

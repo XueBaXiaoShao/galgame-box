@@ -48,13 +48,7 @@ def _settings_file() -> Path:
 
 
 def default_settings() -> dict[str, Any]:
-    return {
-        "popular_threshold": 0,
-        "year_from": 0,
-        "year_to": 0,
-        "companies": [],
-        "company_ids": [],
-    }
+    return {"popular_threshold": 0, "year_from": 0, "year_to": 0}
 
 
 def load_settings() -> dict[str, Any]:
@@ -70,10 +64,6 @@ def load_settings() -> dict[str, Any]:
         value = payload[key]
         if isinstance(value, int) and not isinstance(value, bool):
             settings[key] = value
-        elif key in ("companies", "company_ids") and isinstance(value, list):
-            settings[key] = [
-                str(item) for item in value if str(item).strip()
-            ]
     return settings
 
 
@@ -92,23 +82,61 @@ def save_settings(settings: dict[str, Any]) -> None:
 
 
 def settings_text(settings: dict[str, Any]) -> str:
-    from . import companies as companies_catalog
-
     threshold = settings.get("popular_threshold", 0)
     year_from = settings.get("year_from", 0)
     year_to = settings.get("year_to", 0)
-    company_names = companies_catalog.display_names(settings.get("companies", []))
     return (
         "【每日老婆设置】\n"
         f"热度阈值：{threshold}（只抽 VNDB 投票数≥该值的作品角色；0=关闭）\n"
         f"年代范围：{year_from or '不限'} - {year_to or '不限'}\n"
-        f"会社筛选：{company_names}\n"
         "用法：\n"
         "/shou gal waifu settings popular <N>\n"
         "/shou gal waifu settings year <起始年> [结束年]\n"
-        "/shou gal waifu settings company <会社key,key...>（off=关闭）\n"
+        "/shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 群会社后门\n"
         "/shou gal waifu settings reset"
     )
+
+
+def _group_settings_file() -> Path:
+    return Path(config.data_dir) / "waifu_group_settings.json"
+
+
+def _load_group_payload() -> dict[str, Any]:
+    try:
+        payload = json.loads(_group_settings_file().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def get_group_company(group_id: int) -> dict[str, Any]:
+    """读取指定群的会社后门；未设置返回空。"""
+    entry = _load_group_payload().get("groups", {}).get(str(group_id), {})
+    companies_list = entry.get("companies") if isinstance(entry.get("companies"), list) else []
+    company_ids = entry.get("company_ids") if isinstance(entry.get("company_ids"), list) else []
+    return {
+        "companies": [str(item) for item in companies_list],
+        "company_ids": [str(item) for item in company_ids],
+    }
+
+
+def save_group_company(
+    group_id: int, companies_list: list[str], company_ids: list[str]
+) -> None:
+    """保存（或清除）指定群的会社后门。"""
+    path = _group_settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _load_group_payload()
+    payload.setdefault("groups", {})[str(group_id)] = {
+        "companies": companies_list,
+        "company_ids": company_ids,
+    }
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
 
 
 def get_today_waifu(user_id: int) -> dict[str, Any] | None:
