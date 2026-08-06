@@ -41,7 +41,8 @@
 - `/shou gal waifu`：所有用户可用，每位用户每天只能抽取一次；当天再次调用会重复展示今日结果；
 - 展示信息只包含名字与代表作，例如：你今天的老婆是来自「千恋万花」的ムラサメ（附角色立绘）；
 - `/shou gal waifu reroll`：仅管理员，重新随机抽取并覆盖今日结果；
-- `/shou gal waifu set <角色名或c开头的VNDB ID>`：仅管理员，直接指定今日老婆；
+- `/shou gal waifu set [<QQ号>] <角色名或c开头的VNDB ID>`：仅管理员，直接指定
+  今日老婆；带 QQ 号时给指定用户设置（如 `set 123456789 ムラサメ`），不带则设置自己；
 - `/waifu`：简化入口，等价 `/shou gal waifu`（`/waifu reroll`、`/waifu set ...`、
   `/waifu settings ...`、`/waifu reset ...` 同样可用），原命令继续保留；
 - `/shou gal waifu reset [all|<QQ号>]`（或 `/waifu reset ...`）：仅管理员，

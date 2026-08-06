@@ -254,6 +254,39 @@ async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
     assert waifu.get_today_waifu(999) is None
 
 
+async def test_waifu_admin_sets_other_user(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    async def fake_search(keyword, limit):
+        return [_character("c88", name="ムラサメ")]
+
+    monkeypatch.setattr(vndb, "search_character", fake_search)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set 888 ムラサメ"))
+
+    assert waifu.get_today_waifu(888)["character_id"] == "c88"
+    assert waifu.get_today_waifu(999) is None
+    assert "888" in str(matcher.sent[-1])
+
+
+async def test_waifu_admin_sets_other_user_by_vndb_id(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    async def fake_get_by_id(vndb_id: str):
+        return _character("c77", name="指定角色")
+
+    monkeypatch.setattr(vndb, "get_by_id", fake_get_by_id)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set 888 c77"))
+
+    assert waifu.get_today_waifu(888)["character_id"] == "c77"
+    assert "888" in str(matcher.sent[-1])
+
+
 async def test_waifu_settings_view_open_to_all(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
 

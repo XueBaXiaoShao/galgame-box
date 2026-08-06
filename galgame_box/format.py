@@ -188,7 +188,7 @@ def help_text() -> str:
 - /shou gal download <ID/关键词> —— 获取资源链接
 - /shou gal find [图片链接] —— AnimeTrace 角色识别
 - /shou gal waifu —— 每日老婆（仅女性角色，每人每天一次；管理员可 waifu
-  reroll 换一个，或 waifu set <角色名/c开头的VNDB ID> 指定）
+  reroll 换一个，或 waifu set [<QQ号>] <角色名/c开头的VNDB ID> 指定/代指定）
 - /shou gal waifu settings —— 查看/修改每日老婆筛选（热度、年代；仅管理员可改）
 - /shou gal waifu settings company —— 查看可选会社
 - /shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 给指定群设置

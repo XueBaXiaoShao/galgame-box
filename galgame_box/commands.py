@@ -548,7 +548,14 @@ async def _cmd_waifu(
             await matcher.finish("只有管理员可以指定每日老婆")
         keyword = arg.strip()
         if not keyword:
-            await matcher.finish("用法：/shou gal waifu set <角色名或VNDB ID>")
+            await matcher.finish(
+                "用法：/shou gal waifu set [<QQ号>] <角色名或VNDB ID>"
+            )
+        target_user_id = user_id
+        first, _, rest = keyword.partition(" ")
+        if first.isdigit() and rest:
+            target_user_id = int(first)
+            keyword = rest.strip()
         if re.match(r"^c\d+$", keyword, re.IGNORECASE):
             try:
                 result = await vndb.get_by_id(keyword.lower())
@@ -565,11 +572,16 @@ async def _cmd_waifu(
                 f"角色「{character.original or character.name}」不是女性，"
                 "不能作为老婆"
             )
-        record = waifu.save_waifu(user_id, character)
+        record = waifu.save_waifu(target_user_id, character)
+        note = (
+            f"已为用户 {target_user_id} 设置老婆"
+            if target_user_id != user_id
+            else "已设置为你的老婆"
+        )
         await matcher.finish(
             _message_with_image(
                 record.get("image_url"),
-                _waifu_text(record, "已设置为你的老婆"),
+                _waifu_text(record, note),
             )
         )
     elif command == "reset":
