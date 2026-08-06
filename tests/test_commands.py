@@ -62,7 +62,7 @@ async def test_vn_handler_applies_limits(monkeypatch) -> None:
     assert calls == [("千恋万花", 1)]
 
 
-async def test_character_handler_defaults_to_config_limit(monkeypatch) -> None:
+async def test_character_handler_defaults_to_single_result(monkeypatch) -> None:
     calls: list[tuple[str, int]] = []
 
     async def fake_search(keyword: str, limit: int):
@@ -71,7 +71,19 @@ async def test_character_handler_defaults_to_config_limit(monkeypatch) -> None:
 
     monkeypatch.setattr(commands.vndb, "search_character", fake_search)
     await _run(commands._cmd_character(_FakeMatcher(), "ムラサメ"))
-    assert calls == [("ムラサメ", commands.config.search_limit)]
+    assert calls == [("ムラサメ", 1)]
+
+
+async def test_character_handler_honors_limits_override(monkeypatch) -> None:
+    calls: list[tuple[str, int]] = []
+
+    async def fake_search(keyword: str, limit: int):
+        calls.append((keyword, limit))
+        return []
+
+    monkeypatch.setattr(commands.vndb, "search_character", fake_search)
+    await _run(commands._cmd_character(_FakeMatcher(), "ムラサメ", 3))
+    assert calls == [("ムラサメ", 3)]
 
 
 def test_message_with_image_uses_url_or_base64() -> None:

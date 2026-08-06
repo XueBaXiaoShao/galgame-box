@@ -30,6 +30,12 @@
 /shou gal vn 千恋万花 limits 3
 ```
 
+`character` 默认只返回匹配度最高的第一个结果，需要更多时请加 `limits <N>`：
+
+```
+/shou gal character ムラサメ limits 5
+```
+
 ### 每日老婆
 
 - `/shou gal waifu`：所有用户可用，每位用户每天只能抽取一次；当天再次调用会重复展示今日结果；

@@ -158,7 +158,8 @@ async def _cmd_character(
 ) -> None:
     if not keyword:
         await matcher.finish("请输入角色名，例如：/shou gal character 鸢泽美咲")
-    items = await vndb.search_character(keyword, limit or config.search_limit)
+    # 默认只返回匹配度最高的第一个结果，避免刷屏；需要更多时用 limits <N> 覆盖
+    items = await vndb.search_character(keyword, limit or 1)
     if not items:
         await matcher.finish(f"未搜索到角色：{keyword}")
     messages = [
