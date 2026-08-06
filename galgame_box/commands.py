@@ -494,19 +494,20 @@ async def _cmd_waifu(
                 )
             )
         settings = waifu.load_settings()
-        group_company = _event_group_company(event)
+        group_settings = _event_group_settings(event)
+        year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
+        year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
         character = await vndb.random_female_character(
             popular_threshold=settings.get("popular_threshold", 0),
-            year_from=settings.get("year_from", 0),
-            year_to=settings.get("year_to", 0),
-            company_ids=group_company["company_ids"],
+            year_from=year_from,
+            year_to=year_to,
+            company_ids=group_settings["company_ids"],
         )
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character)
-        note = _waifu_filter_note(settings, group_company)
         await matcher.finish(
-            _message_with_image(record.get("image_url"), _waifu_text(record, note))
+            _message_with_image(record.get("image_url"), _waifu_text(record))
         )
         return
 
@@ -514,21 +515,22 @@ async def _cmd_waifu(
         if not is_admin:
             await matcher.finish("只有管理员可以更换每日老婆")
         settings = waifu.load_settings()
-        group_company = _event_group_company(event)
+        group_settings = _event_group_settings(event)
+        year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
+        year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
         character = await vndb.random_female_character(
             popular_threshold=settings.get("popular_threshold", 0),
-            year_from=settings.get("year_from", 0),
-            year_to=settings.get("year_to", 0),
-            company_ids=group_company["company_ids"],
+            year_from=year_from,
+            year_to=year_to,
+            company_ids=group_settings["company_ids"],
         )
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character)
-        note = _waifu_filter_note(settings, group_company)
         await matcher.finish(
             _message_with_image(
                 record.get("image_url"),
-                _waifu_text(record, "管理员已更换，这是你的新老婆" + (f"\n{note}" if note else "")),
+                _waifu_text(record, "管理员已更换，这是你的新老婆"),
             )
         )
     elif command == "set":
@@ -581,29 +583,15 @@ async def _cmd_waifu(
         )
 
 
-def _event_group_company(event: MessageEvent) -> dict:
-    """当前会话所在群的会社后门；私聊没有群则返回空。"""
+def _event_group_settings(event: MessageEvent) -> dict:
+    """当前会话所在群的设置（会社后门 + 是否解除年代）；私聊返回空默认。"""
     group_id = getattr(event, "group_id", None)
     if group_id is None:
-        return {"companies": [], "company_ids": []}
-    return waifu.get_group_company(int(group_id))
-
-
-def _waifu_filter_note(settings: dict, group_company: dict | None = None) -> str:
-    """把当前筛选条件拼成提示文本。"""
-    parts: list[str] = []
-    threshold = settings.get("popular_threshold") or 0
-    year_from = settings.get("year_from") or 0
-    year_to = settings.get("year_to") or 0
-    if threshold:
-        parts.append(f"热度≥{threshold}票")
-    if year_from or year_to:
-        parts.append(f"年代 {year_from or '不限'}-{year_to or '不限'}")
-    if group_company:
-        company_names = companies.display_names(group_company.get("companies") or [])
-        if company_names != "不限":
-            parts.append(f"会社 {company_names}")
-    return "筛选：" + "、".join(parts) if parts else ""
+        return {"companies": [], "company_ids": [], "year_off": False}
+    return {
+        **waifu.get_group_company(int(group_id)),
+        "year_off": waifu.get_group_year_off(int(group_id)),
+    }
 
 
 async def _handle_waifu_settings(
@@ -623,7 +611,10 @@ async def _handle_waifu_settings(
             for key in companies.COMPANIES
         )
         await matcher.finish("\n".join(lines))
-    if action == "kaisha" or any(token.startswith("group=") for token in parts):
+    if any(
+        token.startswith(("group=", "kaisha=", "year="))
+        for token in parts
+    ):
         await _handle_group_kaisha(matcher, event, value)
         return
     if not permissions.is_admin(user_id):
@@ -674,12 +665,13 @@ async def _handle_waifu_settings(
 async def _handle_group_kaisha(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
-    """群级会社后门：settings group=<群号> kaisha=<会社key|off>。"""
+    """群级设置：group=<群号> kaisha=<会社key|off> / group=<群号> year=off|on。"""
     user_id = int(getattr(event, "user_id", 0))
     if not permissions.is_admin(user_id):
-        await matcher.finish("只有管理员可以设置群会社后门")
+        await matcher.finish("只有管理员可以设置群级设置")
     group_id: int | None = None
     kaisha: str | None = None
+    year_off: str | None = None
     for token in value.split():
         if token.startswith("group="):
             raw = token.partition("=")[2]
@@ -687,9 +679,23 @@ async def _handle_group_kaisha(
                 group_id = int(raw)
         elif token.startswith("kaisha="):
             kaisha = token.partition("=")[2].strip().lower()
-    if group_id is None or kaisha is None:
+        elif token.startswith("year="):
+            year_off = token.partition("=")[2].strip().lower()
+    if group_id is None:
         await matcher.finish(
-            "用法：/shou gal waifu settings group=<群号> kaisha=<会社key|off>"
+            "用法：/shou gal waifu settings group=<群号> "
+            "kaisha=<会社key|off> | year=off|on"
+        )
+    if year_off is not None:
+        if year_off not in ("on", "off"):
+            await matcher.finish("year 参数只能是 on（恢复）或 off（解除）")
+        waifu.save_group_year_off(group_id, year_off == "off")
+        state = "已解除" if year_off == "off" else "已恢复"
+        await matcher.finish(f"群 {group_id} {state}年代限制")
+    if kaisha is None:
+        await matcher.finish(
+            "用法：/shou gal waifu settings group=<群号> "
+            "kaisha=<会社key|off> | year=off|on"
         )
     if kaisha == "off":
         waifu.save_group_company(group_id, [], [])

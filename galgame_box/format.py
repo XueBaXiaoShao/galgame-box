@@ -193,6 +193,7 @@ def help_text() -> str:
 - /shou gal waifu settings company —— 查看可选会社
 - /shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 给指定群设置
   会社后门（含旗下品牌；仅管理员）
+- /shou gal waifu settings group=<群号> year=off|on —— 单独解除/恢复该群的年代限制
 - /waifu —— 每日老婆简化入口（等价 /shou gal waifu，reroll/set/settings/reset 同样可用）
 - /waifu reset [all|<QQ号>] —— 重置每日老婆（全部或单个用户，仅管理员）
 

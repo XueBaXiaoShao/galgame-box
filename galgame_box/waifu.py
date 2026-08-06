@@ -127,10 +127,30 @@ def save_group_company(
     path = _group_settings_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = _load_group_payload()
-    payload.setdefault("groups", {})[str(group_id)] = {
-        "companies": companies_list,
-        "company_ids": company_ids,
-    }
+    entry = payload.setdefault("groups", {}).setdefault(str(group_id), {})
+    entry["companies"] = companies_list
+    entry["company_ids"] = company_ids
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def get_group_year_off(group_id: int) -> bool:
+    """该群是否解除了年代限制（忽略全局 year_from/year_to）。"""
+    entry = _load_group_payload().get("groups", {}).get(str(group_id), {})
+    return bool(entry.get("year_off"))
+
+
+def save_group_year_off(group_id: int, year_off: bool) -> None:
+    """设置该群是否解除年代限制。"""
+    path = _group_settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _load_group_payload()
+    entry = payload.setdefault("groups", {}).setdefault(str(group_id), {})
+    entry["year_off"] = year_off
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",

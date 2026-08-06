@@ -197,7 +197,14 @@ async def random_female_character(
     year_to: int = 0,
     company_ids: list[str] | None = None,
 ) -> VNDBCharacter | None:
-    """随机抽取一名有立绘的女性角色（每日老婆用，可带热度/年代筛选）。"""
+    """随机抽取一名有立绘的女性角色（每日老婆用，可带热度/年代/会社筛选）。"""
+    if company_ids:
+        return await _random_female_character_by_company(
+            popular_threshold=popular_threshold,
+            year_from=year_from,
+            year_to=year_to,
+            company_ids=company_ids,
+        )
     filters = _waifu_filters(
         popular_threshold=popular_threshold,
         year_from=year_from,
@@ -249,6 +256,74 @@ async def random_female_character(
             return random.choice(candidates)
     except Exception:
         pass
+    return None
+
+
+async def _random_female_character_by_company(
+    *,
+    popular_threshold: int = 0,
+    year_from: int = 0,
+    year_to: int = 0,
+    company_ids: list[str],
+) -> VNDBCharacter | None:
+    """会社后门快路径：先按热度取该社作品，再随机取其中一部作品的女角色。
+
+    避免在 character 端点用“会社 OR + 随机页”抽卡——命中集合很小但 ID 跨度
+    极大，随机页几乎全空，导致请求堆积像卡死。
+    """
+    vn_filters: list = [
+        "and",
+        [
+            "or",
+            *[
+                ["developer", "=", ["id", "=", producer_id]]
+                for producer_id in company_ids
+            ],
+        ],
+    ]
+    if popular_threshold and popular_threshold > 0:
+        vn_filters.append(["votecount", ">=", popular_threshold])
+    if year_from and year_from > 0:
+        vn_filters.append(["released", ">=", f"{year_from}-01-01"])
+    if year_to and year_to > 0:
+        vn_filters.append(["released", "<=", f"{year_to}-12-31"])
+
+    payload = {
+        "filters": vn_filters,
+        "fields": "id,title,votecount",
+        "sort": "votecount",
+        "reverse": True,
+        "results": 50,
+    }
+    vns = (await _post("vn", payload)).get("results") or []
+    if not vns:
+        return None
+    random.shuffle(vns)
+    for vn in vns[:10]:
+        char_payload = {
+            "filters": ["and", ["sex", "=", "f"], ["vn", "=", ["id", "=", vn["id"]]]],
+            "fields": FIELDS["character"],
+            "results": 50,
+        }
+        try:
+            characters = [
+                VNDBCharacter.model_validate(item)
+                for item in (await _post("character", char_payload)).get(
+                    "results", []
+                )
+            ]
+        except Exception:
+            continue
+        candidates = [
+            character
+            for character in characters
+            if character.image
+            and character.image.url
+            and (character.sex or [])
+            and character.sex[0] == "f"
+        ]
+        if candidates:
+            return random.choice(candidates)
     return None
 
 

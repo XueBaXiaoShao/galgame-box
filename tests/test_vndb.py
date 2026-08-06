@@ -134,3 +134,43 @@ async def test_resolve_company_ids_uses_search_names(monkeypatch) -> None:
     ids = await vndb.resolve_company_ids(["Yuzusoft", "Yuzusoft SOUR"])
 
     assert ids == ["p98", "p12215"]
+
+
+async def test_random_female_character_uses_fast_company_path(monkeypatch) -> None:
+    calls = []
+
+    async def fake_post(path, payload):
+        calls.append((path, payload))
+        if path == "vn":
+            return {
+                "results": [
+                    {"id": "v8213", "title": "DRACU-RIOT!", "votecount": 4141}
+                ]
+            }
+        return {
+            "results": [
+                {
+                    "id": "c21614",
+                    "name": "Oofusa Hiyori",
+                    "sex": ["f"],
+                    "image": {"url": "https://t.vndb.org/1.jpg"},
+                    "vns": [{"id": "v8213", "title": "DRACU-RIOT!"}],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(vndb, "_post", fake_post)
+
+    character = await vndb.random_female_character(
+        popular_threshold=5000,
+        year_from=2010,
+        company_ids=["p98", "p12215"],
+    )
+
+    assert character is not None
+    assert character.id == "c21614"
+    vn_payload = calls[0][1]
+    assert ["votecount", ">=", 5000] in vn_payload["filters"][1:]
+    assert ["released", ">=", "2010-01-01"] in vn_payload["filters"][1:]
+    assert calls[1][0] == "character"
+    assert calls[1][1]["filters"][2] == ["vn", "=", ["id", "=", "v8213"]]
