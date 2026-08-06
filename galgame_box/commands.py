@@ -19,7 +19,16 @@ from nonebot.adapters.onebot.v11 import Bot, Message, MessageEvent, MessageSegme
 from nonebot.matcher import Matcher
 from nonebot.params import CommandArg
 
-from . import animetrace, format as fmt, http, permissions, touchgal, vndb, waifu
+from . import (
+    animetrace,
+    companies,
+    format as fmt,
+    http,
+    permissions,
+    touchgal,
+    vndb,
+    waifu,
+)
 from .config import config
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
 
@@ -485,7 +494,12 @@ async def _cmd_waifu(
                 )
             )
         settings = waifu.load_settings()
-        character = await vndb.random_female_character(**settings)
+        character = await vndb.random_female_character(
+            popular_threshold=settings.get("popular_threshold", 0),
+            year_from=settings.get("year_from", 0),
+            year_to=settings.get("year_to", 0),
+            company_ids=settings.get("company_ids") or [],
+        )
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character)
@@ -499,7 +513,12 @@ async def _cmd_waifu(
         if not is_admin:
             await matcher.finish("只有管理员可以更换每日老婆")
         settings = waifu.load_settings()
-        character = await vndb.random_female_character(**settings)
+        character = await vndb.random_female_character(
+            popular_threshold=settings.get("popular_threshold", 0),
+            year_from=settings.get("year_from", 0),
+            year_to=settings.get("year_to", 0),
+            company_ids=settings.get("company_ids") or [],
+        )
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character)
@@ -570,6 +589,9 @@ def _waifu_filter_note(settings: dict) -> str:
         parts.append(f"热度≥{threshold}票")
     if year_from or year_to:
         parts.append(f"年代 {year_from or '不限'}-{year_to or '不限'}")
+    company_names = companies.display_names(settings.get("companies") or [])
+    if company_names != "不限":
+        parts.append(f"会社 {company_names}")
     return "筛选：" + "、".join(parts) if parts else ""
 
 
@@ -583,10 +605,18 @@ async def _handle_waifu_settings(
 
     if not action:
         await matcher.finish(waifu.settings_text(waifu.load_settings()))
+    settings = waifu.load_settings()
+    if action == "company" and len(parts) == 1:
+        lines = [f"当前会社筛选：{companies.display_names(settings['companies'])}"]
+        lines.append("可选会社：")
+        lines.extend(
+            f"{key}（{companies.COMPANIES[key]['display']}）"
+            for key in companies.COMPANIES
+        )
+        await matcher.finish("\n".join(lines))
     if not permissions.is_admin(user_id):
         await matcher.finish("只有管理员可以修改每日老婆设置")
 
-    settings = waifu.load_settings()
     if action == "popular":
         if len(parts) != 2 or not parts[1].isdigit() or not (0 <= int(parts[1]) <= 100000):
             await matcher.finish(
@@ -618,6 +648,40 @@ async def _handle_waifu_settings(
         waifu.save_settings(settings)
         await matcher.finish(
             f"已设置年代范围：{year_from or '不限'} - {year_to or '不限'}"
+        )
+    if action == "company":
+        if len(parts) < 2:
+            await matcher.finish(
+                "用法：/shou gal waifu settings company <会社key,key...>（off=关闭）"
+            )
+        raw = parts[1]
+        if raw.lower() in ("off", "none", "0"):
+            settings["companies"] = []
+            settings["company_ids"] = []
+            waifu.save_settings(settings)
+            await matcher.finish("已关闭会社筛选")
+        keys = [
+            key.strip().lower()
+            for key in raw.replace("，", ",").split(",")
+            if key.strip()
+        ]
+        unknown = [key for key in keys if key not in companies.COMPANIES]
+        if unknown:
+            await matcher.finish(
+                "未知会社：" + "、".join(unknown) + "；可用 /shou gal waifu settings company 查看列表"
+            )
+        search_names: list[str] = []
+        for key in keys:
+            search_names.extend(
+                str(name) for name in companies.COMPANIES[key]["search"]
+            )
+        company_ids = await vndb.resolve_company_ids(search_names)
+        settings["companies"] = keys
+        settings["company_ids"] = company_ids
+        waifu.save_settings(settings)
+        await matcher.finish(
+            f"已设置会社筛选：{companies.display_names(keys)}"
+            f"（解析到 {len(company_ids)} 个 VNDB 厂商，含旗下品牌）"
         )
     if action == "reset":
         waifu.save_settings(waifu.default_settings())

@@ -47,11 +47,17 @@ def _settings_file() -> Path:
     return Path(config.data_dir) / "waifu_settings.json"
 
 
-def default_settings() -> dict[str, int]:
-    return {"popular_threshold": 0, "year_from": 0, "year_to": 0}
+def default_settings() -> dict[str, Any]:
+    return {
+        "popular_threshold": 0,
+        "year_from": 0,
+        "year_to": 0,
+        "companies": [],
+        "company_ids": [],
+    }
 
 
-def load_settings() -> dict[str, int]:
+def load_settings() -> dict[str, Any]:
     """读取每日老婆筛选设置；缺失或损坏时返回默认值。"""
     settings = default_settings()
     try:
@@ -59,13 +65,19 @@ def load_settings() -> dict[str, int]:
     except (OSError, json.JSONDecodeError):
         return settings
     for key in settings:
-        value = payload.get(key)
+        if key not in payload:
+            continue
+        value = payload[key]
         if isinstance(value, int) and not isinstance(value, bool):
             settings[key] = value
+        elif key in ("companies", "company_ids") and isinstance(value, list):
+            settings[key] = [
+                str(item) for item in value if str(item).strip()
+            ]
     return settings
 
 
-def save_settings(settings: dict[str, int]) -> None:
+def save_settings(settings: dict[str, Any]) -> None:
     """持久化每日老婆筛选设置。"""
     path = _settings_file()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,17 +91,22 @@ def save_settings(settings: dict[str, int]) -> None:
     temporary.replace(path)
 
 
-def settings_text(settings: dict[str, int]) -> str:
+def settings_text(settings: dict[str, Any]) -> str:
+    from . import companies as companies_catalog
+
     threshold = settings.get("popular_threshold", 0)
     year_from = settings.get("year_from", 0)
     year_to = settings.get("year_to", 0)
+    company_names = companies_catalog.display_names(settings.get("companies", []))
     return (
         "【每日老婆设置】\n"
         f"热度阈值：{threshold}（只抽 VNDB 投票数≥该值的作品角色；0=关闭）\n"
         f"年代范围：{year_from or '不限'} - {year_to or '不限'}\n"
+        f"会社筛选：{company_names}\n"
         "用法：\n"
         "/shou gal waifu settings popular <N>\n"
         "/shou gal waifu settings year <起始年> [结束年]\n"
+        "/shou gal waifu settings company <会社key,key...>（off=关闭）\n"
         "/shou gal waifu settings reset"
     )
 

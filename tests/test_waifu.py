@@ -61,6 +61,8 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
+        "companies": [],
+        "company_ids": [],
     }
     waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
 
@@ -68,6 +70,8 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 5000,
         "year_from": 2000,
         "year_to": 2010,
+        "companies": [],
+        "company_ids": [],
     }
 
 
@@ -307,6 +311,8 @@ async def test_waifu_settings_admin_reset(monkeypatch, tmp_path) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
+        "companies": [],
+        "company_ids": [],
     }
 
 
@@ -327,7 +333,65 @@ async def test_waifu_draw_uses_settings(monkeypatch, tmp_path) -> None:
         "popular_threshold": 5000,
         "year_from": 2000,
         "year_to": 2010,
+        "company_ids": [],
     }
+
+
+async def test_waifu_settings_admin_sets_company(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    async def fake_resolve(search_names):
+        return ["p98", "p12215"]
+
+    monkeypatch.setattr(vndb, "resolve_company_ids", fake_resolve)
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company yuzusoft")
+    )
+
+    settings = waifu.load_settings()
+    assert settings["companies"] == ["yuzusoft"]
+    assert settings["company_ids"] == ["p98", "p12215"]
+    assert "已设置会社" in str(matcher.sent[-1])
+
+
+async def test_waifu_settings_company_rejects_unknown_key(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company nosuch")
+    )
+
+    assert "未知会社" in str(matcher.sent[-1])
+    assert waifu.load_settings()["companies"] == []
+
+
+async def test_waifu_settings_company_off(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    waifu.save_settings(
+        {
+            "popular_threshold": 0,
+            "year_from": 0,
+            "year_to": 0,
+            "companies": ["yuzusoft"],
+            "company_ids": ["p98"],
+        }
+    )
+
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings company off")
+    )
+
+    settings = waifu.load_settings()
+    assert settings["companies"] == []
+    assert settings["company_ids"] == []
 
 
 async def test_waifu_reset_requires_admin(monkeypatch, tmp_path) -> None:

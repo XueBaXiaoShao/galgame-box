@@ -109,3 +109,28 @@ def test_waifu_filters_builds_popularity_and_year_ranges() -> None:
     assert ["vn", "=", ["votecount", ">=", 5000]] in filters
     assert ["vn", "=", ["released", ">=", "2000-01-01"]] in filters
     assert ["vn", "=", ["released", "<=", "2010-12-31"]] in filters
+
+
+def test_waifu_filters_includes_company_ids() -> None:
+    filters = vndb._waifu_filters(company_ids=["p98", "p12215"])
+
+    company_or = filters[2]
+    assert company_or[0] == "or"
+    assert ["vn", "=", ["developer", "=", ["id", "=", "p98"]]] in company_or[1:]
+    assert ["vn", "=", ["developer", "=", ["id", "=", "p12215"]]] in company_or[1:]
+
+
+async def test_resolve_company_ids_uses_search_names(monkeypatch) -> None:
+    async def fake_post(path, payload):
+        keyword = payload["filters"][2]
+        if keyword == "Yuzusoft":
+            return {"results": [{"id": "p98", "name": "Yuzusoft"}]}
+        if keyword == "Yuzusoft SOUR":
+            return {"results": [{"id": "p12215", "name": "Yuzusoft SOUR"}]}
+        return {"results": []}
+
+    monkeypatch.setattr(vndb, "_post", fake_post)
+
+    ids = await vndb.resolve_company_ids(["Yuzusoft", "Yuzusoft SOUR"])
+
+    assert ids == ["p98", "p12215"]

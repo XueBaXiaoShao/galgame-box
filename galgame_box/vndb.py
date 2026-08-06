@@ -153,8 +153,9 @@ def _waifu_filters(
     popular_threshold: int = 0,
     year_from: int = 0,
     year_to: int = 0,
+    company_ids: list[str] | None = None,
 ) -> list:
-    """每日老婆筛选条件：女性 + 可选热度（作品投票数）与发售年代范围。"""
+    """每日老婆筛选条件：女性 + 可选热度/年代/会社（VNDB 厂商 ID）。"""
     filters: list = ["and", ["sex", "=", "f"]]
     if popular_threshold and popular_threshold > 0:
         filters.append(["vn", "=", ["votecount", ">=", popular_threshold]])
@@ -162,6 +163,12 @@ def _waifu_filters(
         filters.append(["vn", "=", ["released", ">=", f"{year_from}-01-01"]])
     if year_to and year_to > 0:
         filters.append(["vn", "=", ["released", "<=", f"{year_to}-12-31"]])
+    if company_ids:
+        company_filters = [
+            ["vn", "=", ["developer", "=", ["id", "=", producer_id]]]
+            for producer_id in company_ids
+        ]
+        filters.append(["or", *company_filters])
     return filters
 
 
@@ -188,12 +195,14 @@ async def random_female_character(
     popular_threshold: int = 0,
     year_from: int = 0,
     year_to: int = 0,
+    company_ids: list[str] | None = None,
 ) -> VNDBCharacter | None:
     """随机抽取一名有立绘的女性角色（每日老婆用，可带热度/年代筛选）。"""
     filters = _waifu_filters(
         popular_threshold=popular_threshold,
         year_from=year_from,
         year_to=year_to,
+        company_ids=company_ids,
     )
     page_bound = await _character_id_bound(filters)
     for _ in range(8):
@@ -241,3 +250,35 @@ async def random_female_character(
     except Exception:
         pass
     return None
+
+
+async def search_producer_ids(keyword: str) -> list[str]:
+    """按名称搜索 VNDB 厂商 ID（精确优先，其次包含匹配）。"""
+    payload = {
+        "filters": ["search", "=", keyword],
+        "fields": "id,name,original",
+        "results": 5,
+    }
+    results = (await _post("producer", payload)).get("results") or []
+    lower = keyword.lower()
+    for item in results:
+        name = (item.get("name") or "").lower()
+        original = (item.get("original") or "").lower()
+        if name == lower or original == lower:
+            return [item["id"]]
+    for item in results:
+        name = (item.get("name") or "").lower()
+        original = (item.get("original") or "").lower()
+        if lower in name or lower in original:
+            return [item["id"]]
+    return []
+
+
+async def resolve_company_ids(search_names: list[str]) -> list[str]:
+    """把会社（含旗下品牌）的搜索名解析为去重后的 VNDB 厂商 ID 列表。"""
+    ids: list[str] = []
+    for name in search_names:
+        for producer_id in await search_producer_ids(name):
+            if producer_id not in ids:
+                ids.append(producer_id)
+    return ids
