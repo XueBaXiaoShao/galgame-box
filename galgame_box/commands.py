@@ -170,6 +170,29 @@ def _message_with_image(image_url: str | None, text: str) -> Message:
     return Message(segments)
 
 
+def _waifu_reply(
+    event: MessageEvent,
+    image_url: str | None,
+    text: str,
+    at_user_id: int | None = None,
+) -> Message:
+    """群聊回复老婆时先 @ 触发者（或 set 指定的目标用户），避免多人同时抽分不清。"""
+    segments: list[MessageSegment] = []
+    if getattr(event, "group_id", None) is not None:
+        target = (
+            at_user_id
+            if at_user_id is not None
+            else getattr(event, "user_id", None)
+        )
+        if target is not None:
+            segments.append(MessageSegment.at(user_id=int(target)))
+    image = _image_segment(image_url)
+    if image is not None:
+        segments.append(image)
+    segments.append(MessageSegment.text(text))
+    return Message(segments)
+
+
 async def _cmd_vn(matcher: Matcher, keyword: str, limit: int | None = None) -> None:
     if not keyword:
         await matcher.finish("请输入作品名，例如：/shou gal vn 苍之彼方的四重奏")
@@ -488,7 +511,8 @@ async def _cmd_waifu(
         existing = waifu.get_today_waifu(user_id)
         if existing:
             await matcher.finish(
-                _message_with_image(
+                _waifu_reply(
+                    event,
                     existing.get("image_url"),
                     _waifu_text(existing, "你今天已经抽过啦，明天再来（重复展示今日老婆）"),
                 )
@@ -512,7 +536,7 @@ async def _cmd_waifu(
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character)
         await matcher.finish(
-            _message_with_image(record.get("image_url"), _waifu_text(record))
+            _waifu_reply(event, record.get("image_url"), _waifu_text(record))
         )
         return
 
@@ -538,7 +562,8 @@ async def _cmd_waifu(
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character)
         await matcher.finish(
-            _message_with_image(
+            _waifu_reply(
+                event,
                 record.get("image_url"),
                 _waifu_text(record, "管理员已更换，这是你的新老婆"),
             )
@@ -579,9 +604,11 @@ async def _cmd_waifu(
             else "已设置为你的老婆"
         )
         await matcher.finish(
-            _message_with_image(
+            _waifu_reply(
+                event,
                 record.get("image_url"),
                 _waifu_text(record, note),
+                at_user_id=target_user_id if target_user_id != user_id else None,
             )
         )
     elif command == "reset":

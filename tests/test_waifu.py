@@ -437,6 +437,55 @@ async def test_waifu_draw_uses_group_backdoor(monkeypatch, tmp_path) -> None:
     assert captured["company_ids"] == ["p98", "p12215"]
 
 
+async def test_waifu_draw_mentions_user_in_group(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    async def fake_random(**kwargs):
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeGroupEvent(123, 912875556), ""))
+
+    message = matcher.sent[-1]
+    assert message[0].type == "at"
+    assert int(message[0].data["qq"]) == 123
+
+
+async def test_waifu_draw_no_mention_in_private(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    async def fake_random(**kwargs):
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), ""))
+
+    message = matcher.sent[-1]
+    assert message[0].type != "at"
+
+
+async def test_waifu_set_other_mentions_target(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    async def fake_search(keyword, limit):
+        return [_character("c88", name="ムラサメ")]
+
+    monkeypatch.setattr(vndb, "search_character", fake_search)
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(
+            matcher, _FakeGroupEvent(999, 912875556), "set 888 ムラサメ"
+        )
+    )
+
+    message = matcher.sent[-1]
+    assert message[0].type == "at"
+    assert int(message[0].data["qq"]) == 888
+
+
 def test_group_year_off_round_trip(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
 
