@@ -239,7 +239,7 @@ async def test_waifu_admin_set_by_vndb_id(monkeypatch, tmp_path) -> None:
     assert waifu.get_today_waifu(999)["character_id"] == "c77"
 
 
-async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
+async def test_waifu_admin_set_bypasses_gender_rule(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     _write_admins(tmp_path, [999])
 
@@ -250,8 +250,7 @@ async def test_waifu_admin_set_rejects_male(monkeypatch, tmp_path) -> None:
     matcher = _FakeMatcher()
     await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set 男角色"))
 
-    assert "不是女性" in str(matcher.sent[-1])
-    assert waifu.get_today_waifu(999) is None
+    assert waifu.get_today_waifu(999)["character_id"] == "c66"
 
 
 async def test_waifu_admin_sets_other_user(monkeypatch, tmp_path) -> None:
