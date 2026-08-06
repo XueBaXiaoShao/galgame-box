@@ -32,6 +32,27 @@ def _is_gal_event(event: MessageEvent) -> bool:
 
 shou_gal = on_command("shou", rule=_is_gal_event, priority=1, block=True)
 
+
+def _is_slash_waifu(event: MessageEvent) -> bool:
+    """/waifu 简化入口只认带斜杠的命令，避免普通文本误触发。"""
+    text = (event.get_plaintext() or "").lstrip()
+    return re.match(r"^/waifu(?:\s|$)", text, re.IGNORECASE) is not None
+
+
+waifu_short = on_command("waifu", rule=_is_slash_waifu, priority=1, block=True)
+
+
+@waifu_short.handle()
+async def handle_waifu_short(
+    event: MessageEvent,
+    matcher: Matcher,
+    arg: Message = CommandArg(),
+) -> None:
+    """/waifu 简化入口：等价 /shou gal waifu（reroll/set/settings 同样可用）。"""
+    value = (arg.extract_plain_text() or "").strip()
+    await _cmd_waifu(matcher, event, value)
+
+
 _LIMITS_RE = re.compile(r"(?i)\blimits?\s+(\d{1,4})\s*$")
 _MAX_LIMIT = 50
 

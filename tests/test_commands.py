@@ -29,6 +29,35 @@ def test_shou_gal_matcher_priority_and_blocking() -> None:
     assert commands.shou_gal.block is True
 
 
+def test_waifu_short_matcher_registered() -> None:
+    assert commands.waifu_short.priority == 1
+    assert commands.waifu_short.block is True
+
+
+def test_is_slash_waifu_rule() -> None:
+    assert commands._is_slash_waifu(_fake_event("/waifu")) is True
+    assert commands._is_slash_waifu(_fake_event("/waifu reroll")) is True
+    assert commands._is_slash_waifu(_fake_event("  /waifu")) is True
+    assert commands._is_slash_waifu(_fake_event("waifu")) is False
+    assert commands._is_slash_waifu(_fake_event("/waifux")) is False
+    assert commands._is_slash_waifu(_fake_event("/shou gal waifu")) is False
+
+
+async def test_waifu_short_delegates_to_waifu(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    async def fake_cmd_waifu(matcher, event, value):
+        captured["value"] = value
+
+    monkeypatch.setattr(commands, "_cmd_waifu", fake_cmd_waifu)
+    from nonebot.adapters.onebot.v11 import Message
+
+    await commands.handle_waifu_short(
+        _fake_event(1), _FakeMatcher(), Message("reroll")
+    )
+    assert captured["value"] == "reroll"
+
+
 def test_is_gal_event_only_matches_shou_gal() -> None:
     assert commands._is_gal_event(_fake_event("/shou gal")) is True
     assert commands._is_gal_event(_fake_event("/shou gal vn 千恋万花")) is True
