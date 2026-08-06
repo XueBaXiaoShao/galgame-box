@@ -65,6 +65,8 @@
   全部可选会社；
 - `/shou gal waifu settings group=<群号> year=off|on`：单独解除/恢复该群的年代
   限制（`year=off` 后该群忽略全局年代，热度与会社筛选仍然生效）；
+- `/shou gal waifu settings group=<群号> popular=off|on`：单独解除/恢复该群的
+  热度限制（`popular=off` 后该群忽略全局热度阈值，年代与会社筛选仍然生效）；
 - `/shou gal waifu settings reset`：恢复默认（热度关闭、年代不限）；
 - 设置持久化在 `data/waifu_settings.json`，只允许 `admin_ids.json` 权限组中的
   管理员修改，查看对所有人开放。

@@ -497,8 +497,13 @@ async def _cmd_waifu(
         group_settings = _event_group_settings(event)
         year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
         year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
+        popular = (
+            0
+            if group_settings["popular_off"]
+            else settings.get("popular_threshold", 0)
+        )
         character = await vndb.random_female_character(
-            popular_threshold=settings.get("popular_threshold", 0),
+            popular_threshold=popular,
             year_from=year_from,
             year_to=year_to,
             company_ids=group_settings["company_ids"],
@@ -518,8 +523,13 @@ async def _cmd_waifu(
         group_settings = _event_group_settings(event)
         year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
         year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
+        popular = (
+            0
+            if group_settings["popular_off"]
+            else settings.get("popular_threshold", 0)
+        )
         character = await vndb.random_female_character(
-            popular_threshold=settings.get("popular_threshold", 0),
+            popular_threshold=popular,
             year_from=year_from,
             year_to=year_to,
             company_ids=group_settings["company_ids"],
@@ -584,13 +594,19 @@ async def _cmd_waifu(
 
 
 def _event_group_settings(event: MessageEvent) -> dict:
-    """当前会话所在群的设置（会社后门 + 是否解除年代）；私聊返回空默认。"""
+    """当前会话所在群的设置（会社后门 + 是否解除年代/热度）；私聊返回空默认。"""
     group_id = getattr(event, "group_id", None)
     if group_id is None:
-        return {"companies": [], "company_ids": [], "year_off": False}
+        return {
+            "companies": [],
+            "company_ids": [],
+            "year_off": False,
+            "popular_off": False,
+        }
     return {
         **waifu.get_group_company(int(group_id)),
         "year_off": waifu.get_group_year_off(int(group_id)),
+        "popular_off": waifu.get_group_popular_off(int(group_id)),
     }
 
 
@@ -612,7 +628,7 @@ async def _handle_waifu_settings(
         )
         await matcher.finish("\n".join(lines))
     if any(
-        token.startswith(("group=", "kaisha=", "year="))
+        token.startswith(("group=", "kaisha=", "year=", "popular="))
         for token in parts
     ):
         await _handle_group_kaisha(matcher, event, value)
@@ -665,13 +681,14 @@ async def _handle_waifu_settings(
 async def _handle_group_kaisha(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
-    """群级设置：group=<群号> kaisha=<会社key|off> / group=<群号> year=off|on。"""
+    """群级设置：kaisha/year/popular 后门。"""
     user_id = int(getattr(event, "user_id", 0))
     if not permissions.is_admin(user_id):
         await matcher.finish("只有管理员可以设置群级设置")
     group_id: int | None = None
     kaisha: str | None = None
     year_off: str | None = None
+    popular_off: str | None = None
     for token in value.split():
         if token.startswith("group="):
             raw = token.partition("=")[2]
@@ -681,10 +698,12 @@ async def _handle_group_kaisha(
             kaisha = token.partition("=")[2].strip().lower()
         elif token.startswith("year="):
             year_off = token.partition("=")[2].strip().lower()
+        elif token.startswith("popular="):
+            popular_off = token.partition("=")[2].strip().lower()
     if group_id is None:
         await matcher.finish(
             "用法：/shou gal waifu settings group=<群号> "
-            "kaisha=<会社key|off> | year=off|on"
+            "kaisha=<会社key|off> | year=off|on | popular=off|on"
         )
     if year_off is not None:
         if year_off not in ("on", "off"):
@@ -692,10 +711,16 @@ async def _handle_group_kaisha(
         waifu.save_group_year_off(group_id, year_off == "off")
         state = "已解除" if year_off == "off" else "已恢复"
         await matcher.finish(f"群 {group_id} {state}年代限制")
+    if popular_off is not None:
+        if popular_off not in ("on", "off"):
+            await matcher.finish("popular 参数只能是 on（恢复）或 off（解除）")
+        waifu.save_group_popular_off(group_id, popular_off == "off")
+        state = "已解除" if popular_off == "off" else "已恢复"
+        await matcher.finish(f"群 {group_id} {state}热度限制")
     if kaisha is None:
         await matcher.finish(
             "用法：/shou gal waifu settings group=<群号> "
-            "kaisha=<会社key|off> | year=off|on"
+            "kaisha=<会社key|off> | year=off|on | popular=off|on"
         )
     if kaisha == "off":
         waifu.save_group_company(group_id, [], [])

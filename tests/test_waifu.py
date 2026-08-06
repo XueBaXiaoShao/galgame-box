@@ -415,6 +415,17 @@ def test_group_year_off_round_trip(tmp_path, monkeypatch) -> None:
     assert waifu.get_group_year_off(912875556) is True
 
 
+def test_group_popular_off_round_trip(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    assert waifu.get_group_popular_off(912875556) is False
+    waifu.save_group_popular_off(912875556, True)
+    assert waifu.get_group_popular_off(912875556) is True
+    # 设置会社后门不应清掉 popular_off
+    waifu.save_group_company(912875556, ["yuzusoft"], ["p98"])
+    assert waifu.get_group_popular_off(912875556) is True
+
+
 async def test_waifu_group_year_off_switch(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     _write_admins(tmp_path, [999])
@@ -455,6 +466,48 @@ async def test_waifu_draw_ignores_year_when_group_off(
 
     assert captured["year_from"] == 0
     assert captured["year_to"] == 0
+    assert captured["company_ids"] == ["p98"]
+
+
+async def test_waifu_group_popular_off_switch(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    matcher = _FakeMatcher()
+
+    await _run(
+        commands._cmd_waifu(
+            matcher, _FakeEvent(999), "settings group=912875556 popular=off"
+        )
+    )
+    assert "已解除" in str(matcher.sent[-1])
+    assert waifu.get_group_popular_off(912875556) is True
+
+    await _run(
+        commands._cmd_waifu(
+            matcher, _FakeEvent(999), "settings group=912875556 popular=on"
+        )
+    )
+    assert waifu.get_group_popular_off(912875556) is False
+
+
+async def test_waifu_draw_ignores_popularity_when_group_off(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    waifu.save_settings({"popular_threshold": 5000, "year_from": 0, "year_to": 0})
+    waifu.save_group_company(912875556, ["yuzusoft"], ["p98"])
+    waifu.save_group_popular_off(912875556, True)
+    captured: dict = {}
+
+    async def fake_random(**kwargs):
+        captured.update(kwargs)
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeGroupEvent(123, 912875556), ""))
+
+    assert captured["popular_threshold"] == 0
     assert captured["company_ids"] == ["p98"]
 
 

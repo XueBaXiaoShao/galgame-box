@@ -159,6 +159,27 @@ def save_group_year_off(group_id: int, year_off: bool) -> None:
     temporary.replace(path)
 
 
+def get_group_popular_off(group_id: int) -> bool:
+    """该群是否解除了热度限制（忽略全局 popular_threshold）。"""
+    entry = _load_group_payload().get("groups", {}).get(str(group_id), {})
+    return bool(entry.get("popular_off"))
+
+
+def save_group_popular_off(group_id: int, popular_off: bool) -> None:
+    """设置该群是否解除热度限制。"""
+    path = _group_settings_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = _load_group_payload()
+    entry = payload.setdefault("groups", {}).setdefault(str(group_id), {})
+    entry["popular_off"] = popular_off
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
 def get_today_waifu(user_id: int) -> dict[str, Any] | None:
     """返回该用户今天的每日老婆；没有或已过期返回 None。"""
     payload = _load()
