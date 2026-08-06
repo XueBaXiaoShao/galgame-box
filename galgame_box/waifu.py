@@ -122,3 +122,18 @@ def save_waifu(user_id: int, character: VNDBCharacter) -> dict[str, Any]:
         payload.setdefault("users", {})[str(user_id)] = record
         _write(payload)
     return record
+
+
+def reset_waifu(user_id: int | None) -> int:
+    """重置每日老婆：user_id 为 None 时清空所有人，否则只清指定用户；返回清除数。"""
+    with _lock:
+        payload = _load()
+        users = payload.setdefault("users", {})
+        if user_id is None:
+            count = len(users)
+            payload["users"] = {}
+        else:
+            count = 1 if str(user_id) in users else 0
+            users.pop(str(user_id), None)
+        _write(payload)
+        return count

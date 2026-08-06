@@ -55,6 +55,21 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
     }
 
 
+def test_waifu_reset_all_and_single(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    waifu.save_waifu(111, _character("c1"))
+    waifu.save_waifu(222, _character("c2"))
+
+    assert waifu.reset_waifu(111) == 1
+    assert waifu.get_today_waifu(111) is None
+    assert waifu.get_today_waifu(222) is not None
+
+    assert waifu.reset_waifu(None) == 1
+    assert waifu.get_today_waifu(222) is None
+    assert waifu.reset_waifu(None) == 0
+    assert waifu.reset_waifu(999) == 0
+
+
 async def test_random_female_character_retries_empty_pages(monkeypatch) -> None:
     calls = []
 
@@ -297,6 +312,46 @@ async def test_waifu_draw_uses_settings(monkeypatch, tmp_path) -> None:
         "year_from": 2000,
         "year_to": 2010,
     }
+
+
+async def test_waifu_reset_requires_admin(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    waifu.save_waifu(100, _character("c1"))
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(100), "reset all"))
+
+    assert "只有管理员可以重置每日老婆" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(100) is not None
+
+
+async def test_waifu_admin_reset_all(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    waifu.save_waifu(111, _character("c1"))
+    waifu.save_waifu(222, _character("c2"))
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "reset all"))
+
+    assert "已重置全部" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(111) is None
+    assert waifu.get_today_waifu(222) is None
+
+
+async def test_waifu_admin_reset_single(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+    waifu.save_waifu(111, _character("c1"))
+    waifu.save_waifu(222, _character("c2"))
+
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "reset 111"))
+
+    assert "已重置用户 111" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(111) is None
+    assert waifu.get_today_waifu(222) is not None
 
 
 def test_parse_subcommand_waifu() -> None:

@@ -542,9 +542,24 @@ async def _cmd_waifu(
                 _waifu_text(record, "已设置为你的老婆"),
             )
         )
+    elif command == "reset":
+        if not permissions.is_admin(user_id):
+            await matcher.finish("只有管理员可以重置每日老婆")
+        target = arg.strip()
+        if not target or target.lower() == "all":
+            count = waifu.reset_waifu(None)
+            await matcher.finish(
+                f"已重置全部用户的每日老婆（{count} 人），今天可以重新抽取"
+            )
+        if target.isdigit():
+            count = waifu.reset_waifu(int(target))
+            if count:
+                await matcher.finish(f"已重置用户 {target} 的每日老婆")
+            await matcher.finish(f"用户 {target} 今天还没有每日老婆")
+        await matcher.finish("用法：/waifu reset [all|<QQ号>]")
     else:
         await matcher.finish(
-            "用法：/shou gal waifu [reroll|set <角色名>|settings]"
+            "用法：/shou gal waifu [reroll|set <角色名>|settings|reset [all|<QQ号>]]"
         )
 
 
