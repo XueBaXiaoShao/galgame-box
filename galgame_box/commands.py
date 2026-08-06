@@ -48,6 +48,32 @@ def _is_slash_waifu(event: MessageEvent) -> bool:
     return re.match(r"^/waifu(?:\s|$)", text, re.IGNORECASE) is not None
 
 
+def _plugin_enabled_for_event(event: MessageEvent) -> bool:
+    """该群是否启用 galgame_box（读取与 x_admin 共用的 plugin_switches.json）。"""
+    group_id = getattr(event, "group_id", None)
+    if group_id is None:
+        return True
+    try:
+        payload = json.loads(
+            (Path(config.data_dir) / "plugin_switches.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, json.JSONDecodeError):
+        return True
+    if not isinstance(payload, dict):
+        return True
+    groups = payload.get("groups")
+    if isinstance(groups, dict):
+        entry = groups.get(str(group_id))
+        if isinstance(entry, dict) and "galgame_box" in entry:
+            return bool(entry["galgame_box"])
+    defaults = payload.get("defaults")
+    if isinstance(defaults, dict) and "galgame_box" in defaults:
+        return bool(defaults["galgame_box"])
+    return True
+
+
 waifu_short = on_command("waifu", rule=_is_slash_waifu, priority=1, block=True)
 
 
@@ -58,6 +84,8 @@ async def handle_waifu_short(
     arg: Message = CommandArg(),
 ) -> None:
     """/waifu 简化入口：等价 /shou gal waifu（reroll/set/settings 同样可用）。"""
+    if not _plugin_enabled_for_event(event):
+        await matcher.finish("该群已禁用 galgame 功能")
     value = (arg.extract_plain_text() or "").strip()
     await _cmd_waifu(matcher, event, value)
 
@@ -109,6 +137,8 @@ async def handle_shou_gal(
     matcher: Matcher,
     arg: Message = CommandArg(),
 ):
+    if not _plugin_enabled_for_event(event):
+        await matcher.finish("该群已禁用 galgame 功能")
     text = (arg.extract_plain_text() or "").strip()
     parts = text.split(maxsplit=1)
     if not parts or parts[0].lower() != "gal":

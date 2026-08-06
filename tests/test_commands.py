@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from galgame_box import commands
 
 
@@ -41,6 +43,34 @@ def test_is_slash_waifu_rule() -> None:
     assert commands._is_slash_waifu(_fake_event("waifu")) is False
     assert commands._is_slash_waifu(_fake_event("/waifux")) is False
     assert commands._is_slash_waifu(_fake_event("/shou gal waifu")) is False
+
+
+def test_plugin_switch_disables_group(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    (tmp_path / "plugin_switches.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "defaults": {},
+                "groups": {"275770691": {"galgame_box": False}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert commands._plugin_enabled_for_event(_fake_event("x")) is True
+    assert commands._plugin_enabled_for_event(_FakeGroupEvent(275770691)) is False
+    assert commands._plugin_enabled_for_event(_FakeGroupEvent(999)) is True
+
+
+async def test_waifu_short_blocked_when_group_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(commands, "_plugin_enabled_for_event", lambda event: False)
+    from nonebot.adapters.onebot.v11 import Message
+
+    matcher = _FakeMatcher()
+    await _run(commands.handle_waifu_short(_fake_event(1), matcher, Message("")))
+
+    assert "已禁用 galgame 功能" in str(matcher.sent[-1])
 
 
 async def test_waifu_short_delegates_to_waifu(monkeypatch) -> None:
@@ -139,6 +169,11 @@ def _fake_event(text: str):
             return self._value
 
     return FakeEvent(text)
+
+
+class _FakeGroupEvent:
+    def __init__(self, group_id: int) -> None:
+        self.group_id = group_id
 
 
 class _FakeMatcher:
