@@ -441,18 +441,11 @@ async def _cmd_find(
 
 
 def _waifu_text(record: dict, note: str = "") -> str:
-    lines = [
-        "【每日老婆】",
-        f"老婆：{record.get('original') or record.get('name') or '未知'}",
-        f"VNDB ID：{record.get('character_id')}",
-    ]
-    birthday = record.get("birthday")
-    if isinstance(birthday, list) and len(birthday) >= 2:
-        lines.append(f"生日：{birthday[0]}月{birthday[1]}日")
+    """老婆信息只展示名字与代表作，例如：来自「千恋万花」的ムラサメ。"""
+    name = record.get("original") or record.get("name") or "未知"
     vns = record.get("vns") or []
-    if vns:
-        vn_list = [f"「{vn.get('title') or '?'}」（{vn.get('id')}）" for vn in vns]
-        lines.append(f"出场作品：{'、'.join(vn_list)}")
+    representative = vns[0].get("title") if vns and vns[0].get("title") else ""
+    lines = [f"来自「{representative}」的{name}"] if representative else [name]
     if note:
         lines.append(note)
     return "\n".join(lines)
