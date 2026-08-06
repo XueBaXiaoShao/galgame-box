@@ -45,13 +45,13 @@ def test_waifu_text_shows_name_and_representative_work() -> None:
         "vns": [{"id": "v1", "title": "千恋万花"}],
     }
 
-    assert commands._waifu_text(record) == "来自「千恋万花」的ムラサメ"
+    assert commands._waifu_text(record) == "你今天的老婆是来自「千恋万花」的ムラサメ"
 
 
 def test_waifu_text_falls_back_to_name_without_work() -> None:
     record = {"original": "", "name": "Hero", "vns": []}
 
-    assert commands._waifu_text(record) == "Hero"
+    assert commands._waifu_text(record) == "你今天的老婆是Hero"
 
 
 def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
@@ -144,7 +144,7 @@ async def test_waifu_once_per_day(monkeypatch, tmp_path) -> None:
 
     await _run(commands._cmd_waifu(matcher, event, ""))
     assert len(calls) == 1
-    assert "来自「Game」的ヒーロー" in str(matcher.sent[-1])
+    assert "你今天的老婆是来自「Game」的ヒーロー" in str(matcher.sent[-1])
 
     # 第二次调用不再抽新角色，重复展示今日结果
     await _run(commands._cmd_waifu(matcher, event, ""))
@@ -166,7 +166,7 @@ async def test_waifu_admin_reroll(monkeypatch, tmp_path) -> None:
     await _run(commands._cmd_waifu(matcher, _FakeEvent(999), ""))
     await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "reroll"))
 
-    assert "来自「Game」的ヒーロー" in str(matcher.sent[-1])
+    assert "你今天的老婆是来自「Game」的ヒーロー" in str(matcher.sent[-1])
     assert waifu.get_today_waifu(999)["character_id"] == "c2"
 
 
@@ -206,7 +206,7 @@ async def test_waifu_admin_added_via_shou_admin_file(
     await _run(commands._cmd_waifu(matcher, _FakeEvent(777), "reroll"))
 
     assert called is True
-    assert "来自「Game」的ヒーロー" in str(matcher.sent[-1])
+    assert "你今天的老婆是来自「Game」的ヒーロー" in str(matcher.sent[-1])
 
 
 async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:
@@ -220,7 +220,7 @@ async def test_waifu_admin_set_by_name(monkeypatch, tmp_path) -> None:
     matcher = _FakeMatcher()
     await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set ムラサメ"))
 
-    assert "来自「Game」的ヒーロー" in str(matcher.sent[-1])
+    assert "你今天的老婆是来自「Game」的ヒーロー" in str(matcher.sent[-1])
     assert waifu.get_today_waifu(999)["character_id"] == "c88"
 
 
@@ -235,7 +235,7 @@ async def test_waifu_admin_set_by_vndb_id(monkeypatch, tmp_path) -> None:
     matcher = _FakeMatcher()
     await _run(commands._cmd_waifu(matcher, _FakeEvent(999), "set c77"))
 
-    assert "来自「Game」的ヒーロー" in str(matcher.sent[-1])
+    assert "你今天的老婆是来自「Game」的ヒーロー" in str(matcher.sent[-1])
     assert waifu.get_today_waifu(999)["character_id"] == "c77"
 
 

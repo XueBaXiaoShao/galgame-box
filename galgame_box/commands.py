@@ -441,11 +441,15 @@ async def _cmd_find(
 
 
 def _waifu_text(record: dict, note: str = "") -> str:
-    """老婆信息只展示名字与代表作，例如：来自「千恋万花」的ムラサメ。"""
+    """老婆信息只展示名字与代表作，例如：你今天的老婆是来自「千恋万花」的ムラサメ。"""
     name = record.get("original") or record.get("name") or "未知"
     vns = record.get("vns") or []
     representative = vns[0].get("title") if vns and vns[0].get("title") else ""
-    lines = [f"来自「{representative}」的{name}"] if representative else [name]
+    lines = (
+        [f"你今天的老婆是来自「{representative}」的{name}"]
+        if representative
+        else [f"你今天的老婆是{name}"]
+    )
     if note:
         lines.append(note)
     return "\n".join(lines)
