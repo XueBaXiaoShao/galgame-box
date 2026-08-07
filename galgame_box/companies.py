@@ -53,7 +53,43 @@ COMPANIES: dict[str, dict[str, object]] = {
         "display": "Azarashisoft（あざらしそふと）",
         "search": ["Azarashisoft"],
     },
+    "alicesoft": {
+        "display": "AliceSoft（アリスソフト）",
+        "search": ["AliceSoft", "Alice Soft", "アリスソフト"],
+    },
+    "keroq": {
+        "display": "KeroQ（ケロQ）",
+        "search": ["KeroQ", "ケロQ"],
+    },
+    "makura": {
+        "display": "Makura（枕）",
+        "search": ["Makura", "Makurasoft", "枕"],
+    },
+    "cabbagesoft": {
+        "display": "Cabbage Soft（きゃべつそふと）",
+        "search": ["Cabbage Soft", "きゃべつそふと"],
+    },
 }
+
+
+# 普通 waifu 的全局默认池：与 /yuzuwaifu 无关
+WAIFU_POOL_KEYS = (
+    "yuzusoft",
+    "key",
+    "august",
+    "alicesoft",
+    "aquaplusleaf",
+    "frontwing",
+    "palette",
+    "sagaplanets",
+    "favorite",
+    "purplesoftware",
+    "navel",
+    "circus",
+    "keroq",
+    "makura",
+    "cabbagesoft",
+)
 
 
 def display_names(keys: list[str]) -> str:

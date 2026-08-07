@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from . import companies
 from .config import config
 from .models import VNDBCharacter
 
@@ -48,7 +49,13 @@ def _settings_file() -> Path:
 
 
 def default_settings() -> dict[str, Any]:
-    return {"popular_threshold": 0, "year_from": 0, "year_to": 0}
+    return {
+        "popular_threshold": 0,
+        "year_from": 0,
+        "year_to": 0,
+        "pool_companies": [],
+        "pool_company_ids": [],
+    }
 
 
 def load_settings() -> dict[str, Any]:
@@ -64,6 +71,8 @@ def load_settings() -> dict[str, Any]:
         value = payload[key]
         if isinstance(value, int) and not isinstance(value, bool):
             settings[key] = value
+        elif key in ("pool_companies", "pool_company_ids") and isinstance(value, list):
+            settings[key] = [str(item) for item in value if str(item).strip()]
     return settings
 
 
@@ -85,13 +94,20 @@ def settings_text(settings: dict[str, Any]) -> str:
     threshold = settings.get("popular_threshold", 0)
     year_from = settings.get("year_from", 0)
     year_to = settings.get("year_to", 0)
+    pool_names = "、".join(
+        str(companies.COMPANIES[key]["display"])
+        for key in settings.get("pool_companies", [])
+        if key in companies.COMPANIES
+    )
     return (
         "【每日老婆设置】\n"
         f"热度阈值：{threshold}（只抽 VNDB 投票数≥该值的作品角色；0=关闭）\n"
         f"年代范围：{year_from or '不限'} - {year_to or '不限'}\n"
+        f"全局会社池：{pool_names or '不限'}\n"
         "用法：\n"
         "/shou gal waifu settings popular <N>\n"
         "/shou gal waifu settings year <起始年> [结束年]\n"
+        "/shou gal waifu settings pool set|off\n"
         "/shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 群会社后门\n"
         "/shou gal waifu settings reset"
     )

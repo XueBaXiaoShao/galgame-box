@@ -192,6 +192,7 @@ def help_text() -> str:
   set 绕过全部筛选规则（性别/年代/热度/会社），仅管理员可用）
 - /shou gal waifu settings —— 查看/修改每日老婆筛选（热度、年代；仅管理员可改）
 - /shou gal waifu settings company —— 查看可选会社
+- /shou gal waifu settings pool —— 查看/设置普通 waifu 全局会社池（set/off）
 - /shou gal waifu settings group=<群号> kaisha=<会社key|off> —— 给指定群设置
   会社后门（含旗下品牌；仅管理员）
 - /shou gal waifu settings group=<群号> year=off|on —— 单独解除/恢复该群的年代限制

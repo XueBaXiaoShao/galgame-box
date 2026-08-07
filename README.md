@@ -68,6 +68,9 @@
   后门，只抽该会社（含旗下品牌）作品里的角色，例如
   `group=275770691 kaisha=yuzusoft`；`kaisha=off` 清除；`settings company` 查看
   全部可选会社；
+- `/shou gal waifu settings pool set|off`：设置普通 waifu 的全局默认会社池
+  （set=15 家固定名单，off=不限会社）；群级 `kaisha` 后门优先于全局池；
+  `/yuzuwaifu` 固定柚子社，不受全局池影响；
 - `/shou gal waifu settings group=<群号> year=off|on`：单独解除/恢复该群的年代
   限制（`year=off` 后该群忽略全局年代，热度与会社筛选仍然生效）；
 - `/shou gal waifu settings group=<群号> popular=off|on`：单独解除/恢复该群的

@@ -68,6 +68,8 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
+        "pool_companies": [],
+        "pool_company_ids": [],
     }
     waifu.save_settings({"popular_threshold": 5000, "year_from": 2000, "year_to": 2010})
 
@@ -75,6 +77,8 @@ def test_waifu_settings_round_trip(tmp_path, monkeypatch) -> None:
         "popular_threshold": 5000,
         "year_from": 2000,
         "year_to": 2010,
+        "pool_companies": [],
+        "pool_company_ids": [],
     }
 
 
@@ -346,6 +350,8 @@ async def test_waifu_settings_admin_reset(monkeypatch, tmp_path) -> None:
         "popular_threshold": 0,
         "year_from": 0,
         "year_to": 0,
+        "pool_companies": [],
+        "pool_company_ids": [],
     }
 
 
@@ -656,6 +662,56 @@ async def test_waifu_draw_ignores_popularity_when_group_off(
 
     assert captured["popular_threshold"] == 0
     assert captured["company_ids"] == ["p98"]
+
+
+async def test_waifu_draw_uses_global_pool_without_backdoor(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    waifu.save_settings(
+        {
+            "popular_threshold": 0,
+            "year_from": 0,
+            "year_to": 0,
+            "pool_companies": ["key", "august"],
+            "pool_company_ids": ["p1", "p2"],
+        }
+    )
+    captured: dict = {}
+
+    async def fake_random(**kwargs):
+        captured.update(kwargs)
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(commands._cmd_waifu(matcher, _FakeGroupEvent(123, 912875556), ""))
+
+    assert captured["company_ids"] == ["p1", "p2"]
+
+
+async def test_waifu_pool_settings_admin(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    _write_admins(tmp_path, [999])
+
+    async def fake_resolve(search_names):
+        return [f"p{i}" for i in range(len(search_names))]
+
+    monkeypatch.setattr(vndb, "resolve_company_ids", fake_resolve)
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings pool set")
+    )
+
+    settings = waifu.load_settings()
+    assert settings["pool_companies"] == list(commands.companies.WAIFU_POOL_KEYS)
+    assert len(settings["pool_company_ids"]) > 0
+    assert "已设置全局会社池" in str(matcher.sent[-1])
+
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(999), "settings pool off")
+    )
+    assert waifu.load_settings()["pool_company_ids"] == []
 
 
 async def test_waifu_reset_requires_admin(monkeypatch, tmp_path) -> None:

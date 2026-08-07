@@ -587,7 +587,11 @@ async def _cmd_waifu(
         if source == "yuzu":
             company_ids = await _yuzusoft_ids()
         else:
-            company_ids = group_settings["company_ids"]
+            company_ids = (
+                group_settings["company_ids"]
+                or settings.get("pool_company_ids")
+                or []
+            )
         character = await vndb.random_female_character(
             popular_threshold=popular,
             year_from=year_from,
@@ -617,7 +621,11 @@ async def _cmd_waifu(
         if source == "yuzu":
             company_ids = await _yuzusoft_ids()
         else:
-            company_ids = group_settings["company_ids"]
+            company_ids = (
+                group_settings["company_ids"]
+                or settings.get("pool_company_ids")
+                or []
+            )
         character = await vndb.random_female_character(
             popular_threshold=popular,
             year_from=year_from,
@@ -744,6 +752,20 @@ async def _handle_waifu_settings(
             for key in companies.COMPANIES
         )
         await matcher.finish("\n".join(lines))
+    if action == "pool" and len(parts) == 1:
+        settings = waifu.load_settings()
+        pool_names = "、".join(
+            str(companies.COMPANIES[key]["display"])
+            for key in settings.get("pool_companies", [])
+            if key in companies.COMPANIES
+        )
+        lines = [f"当前全局会社池：{pool_names or '不限'}"]
+        lines.append("可设置的默认池（waifu 专用，yuzuwaifu 不受影响）：")
+        lines.extend(
+            f"{key}（{companies.COMPANIES[key]['display']}）"
+            for key in companies.WAIFU_POOL_KEYS
+        )
+        await matcher.finish("\n".join(lines))
     if any(
         token.startswith(("group=", "kaisha=", "year=", "popular="))
         for token in parts
@@ -785,6 +807,27 @@ async def _handle_waifu_settings(
         waifu.save_settings(settings)
         await matcher.finish(
             f"已设置年代范围：{year_from or '不限'} - {year_to or '不限'}"
+        )
+    if action == "pool":
+        if len(parts) < 2 or parts[1].lower() not in ("set", "off"):
+            await matcher.finish("用法：/shou gal waifu settings pool set|off")
+        if parts[1].lower() == "off":
+            settings["pool_companies"] = []
+            settings["pool_company_ids"] = []
+            waifu.save_settings(settings)
+            await matcher.finish("已关闭全局会社池（waifu 不限会社）")
+        search_names: list[str] = []
+        for key in companies.WAIFU_POOL_KEYS:
+            search_names.extend(
+                str(name) for name in companies.COMPANIES[key]["search"]
+            )
+        ids = await vndb.resolve_company_ids(search_names)
+        settings["pool_companies"] = list(companies.WAIFU_POOL_KEYS)
+        settings["pool_company_ids"] = ids
+        waifu.save_settings(settings)
+        await matcher.finish(
+            f"已设置全局会社池：{companies.display_names(list(companies.WAIFU_POOL_KEYS))}"
+            f"（解析到 {len(ids)} 个 VNDB 厂商，含旗下品牌）"
         )
     if action == "reset":
         waifu.save_settings(waifu.default_settings())
