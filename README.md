@@ -46,6 +46,9 @@
   用户设置（如 `set 123456789 ムラサメ`），不带则设置自己；
 - `/waifu`：简化入口，等价 `/shou gal waifu`（`/waifu reroll`、`/waifu set ...`、
   `/waifu settings ...`、`/waifu reset ...` 同样可用），原命令继续保留；
+- `/yuzuwaifu`（及 `/shou gal yuzuwaifu`）：固定从柚子社（Yuzusoft，含 SOUR）
+  抽取的专属老婆，无视群会社后门；与普通 `/waifu` **共用每天一次名额**——当天
+  抽了其中一个，另一个会提示已抽过，需管理员 `reset` 后才能换抽；
 - `/shou gal waifu reset [all|<QQ号>]`（或 `/waifu reset ...`）：仅管理员，
   `reset all` 清空所有用户今天的每日老婆，`reset <QQ号>` 只清指定用户；
 - 只接受 VNDB 性别为女性的角色，随机抽取与管理员指定都会校验；

@@ -189,10 +189,13 @@ def get_today_waifu(user_id: int) -> dict[str, Any] | None:
     return None
 
 
-def save_waifu(user_id: int, character: VNDBCharacter) -> dict[str, Any]:
-    """保存（或覆盖）用户今天的每日老婆。"""
+def save_waifu(
+    user_id: int, character: VNDBCharacter, source: str = "waifu"
+) -> dict[str, Any]:
+    """保存（或覆盖）用户今天的每日老婆；source 区分普通 waifu / yuzuwaifu。"""
     record: dict[str, Any] = {
         "date": _today(),
+        "source": source,
         "character_id": character.id,
         "name": character.name,
         "original": character.original,

@@ -197,6 +197,7 @@ def help_text() -> str:
 - /shou gal waifu settings group=<群号> year=off|on —— 单独解除/恢复该群的年代限制
 - /shou gal waifu settings group=<群号> popular=off|on —— 单独解除/恢复该群的热度限制
 - /waifu —— 每日老婆简化入口（等价 /shou gal waifu，reroll/set/settings/reset 同样可用）
+- /yuzuwaifu —— 柚子社专属老婆（固定柚子社；与 /waifu 共用每天一次名额）
 - /waifu reset [all|<QQ号>] —— 重置每日老婆（全部或单个用户，仅管理员）
 
 搜索类命令（vn/character/producer/event/recommend/download）可在末尾追加

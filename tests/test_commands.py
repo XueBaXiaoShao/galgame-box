@@ -45,6 +45,13 @@ def test_is_slash_waifu_rule() -> None:
     assert commands._is_slash_waifu(_fake_event("/shou gal waifu")) is False
 
 
+def test_is_slash_yuzuwaifu_rule() -> None:
+    assert commands._is_slash_yuzuwaifu(_fake_event("/yuzuwaifu")) is True
+    assert commands._is_slash_yuzuwaifu(_fake_event("/yuzuwaifu reroll")) is True
+    assert commands._is_slash_yuzuwaifu(_fake_event("/waifu")) is False
+    assert commands._is_slash_yuzuwaifu(_fake_event("yuzuwaifu")) is False
+
+
 def test_plugin_switch_disables_group(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     (tmp_path / "plugin_switches.json").write_text(

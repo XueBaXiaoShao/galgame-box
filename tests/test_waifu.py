@@ -38,6 +38,13 @@ def test_waifu_state_round_trip(tmp_path, monkeypatch) -> None:
     assert waifu.get_today_waifu(123)["character_id"] == "c1"
 
 
+def test_waifu_save_stores_source(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+
+    waifu.save_waifu(123, _character("c1"), source="yuzu")
+    assert waifu.get_today_waifu(123)["source"] == "yuzu"
+
+
 def test_waifu_text_shows_name_and_representative_work() -> None:
     record = {
         "original": "ムラサメ",
@@ -436,6 +443,65 @@ async def test_waifu_draw_uses_group_backdoor(monkeypatch, tmp_path) -> None:
     assert captured["company_ids"] == ["p98", "p12215"]
 
 
+async def test_yuzuwaifu_uses_fixed_company_and_ignores_kaisha(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    # 群会社后门设置成别的社，yuzuwaifu 仍应固定柚子社
+    waifu.save_group_company(912875556, ["smee"], ["p999"])
+    captured: dict = {}
+
+    async def fake_random(**kwargs):
+        captured.update(kwargs)
+        return _character("c9")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    monkeypatch.setattr(
+        commands, "_yuzusoft_ids", _FakeAsync(["p98", "p12215"])
+    )
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(
+            matcher, _FakeGroupEvent(123, 912875556), "", source="yuzu"
+        )
+    )
+
+    assert captured["company_ids"] == ["p98", "p12215"]
+
+
+async def test_waifu_and_yuzuwaifu_share_daily_quota(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    picks = [_character("c1"), _character("c2")]
+    calls = []
+
+    async def fake_random(**kwargs):
+        calls.append(1)
+        return picks.pop(0)
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    monkeypatch.setattr(commands, "_yuzusoft_ids", _FakeAsync(["p98"]))
+    matcher = _FakeMatcher()
+
+    # 先抽普通 waifu
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), ""))
+    assert len(calls) == 1
+    # 再抽 yuzuwaifu：不再抽新角色，提示已抽过
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(123), "", source="yuzu")
+    )
+    assert len(calls) == 1
+    assert "已经抽过" in str(matcher.sent[-1])
+    assert waifu.get_today_waifu(123)["source"] == "waifu"
+
+    # 重置后再抽 yuzuwaifu 成功
+    waifu.reset_waifu(123)
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(123), "", source="yuzu")
+    )
+    assert len(calls) == 2
+    assert waifu.get_today_waifu(123)["source"] == "yuzu"
+
+
 async def test_waifu_draw_mentions_user_in_group(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
 
@@ -646,6 +712,14 @@ class _FakeGroupEvent(_FakeEvent):
     def __init__(self, user_id: int, group_id: int) -> None:
         super().__init__(user_id)
         self.group_id = group_id
+
+
+class _FakeAsync:
+    def __init__(self, value) -> None:
+        self._value = value
+
+    async def __call__(self, *args, **kwargs):
+        return self._value
 
 
 class _FakeMatcher:

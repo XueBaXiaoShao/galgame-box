@@ -48,6 +48,12 @@ def _is_slash_waifu(event: MessageEvent) -> bool:
     return re.match(r"^/waifu(?:\s|$)", text, re.IGNORECASE) is not None
 
 
+def _is_slash_yuzuwaifu(event: MessageEvent) -> bool:
+    """/yuzuwaifu 简化入口只认带斜杠的命令。"""
+    text = (event.get_plaintext() or "").lstrip()
+    return re.match(r"^/yuzuwaifu(?:\s|$)", text, re.IGNORECASE) is not None
+
+
 def _plugin_enabled_for_event(event: MessageEvent) -> bool:
     """该群是否启用 galgame_box（读取与 x_admin 共用的 plugin_switches.json）。"""
     group_id = getattr(event, "group_id", None)
@@ -75,6 +81,9 @@ def _plugin_enabled_for_event(event: MessageEvent) -> bool:
 
 
 waifu_short = on_command("waifu", rule=_is_slash_waifu, priority=1, block=True)
+yuzuwaifu_short = on_command(
+    "yuzuwaifu", rule=_is_slash_yuzuwaifu, priority=1, block=True
+)
 
 
 @waifu_short.handle()
@@ -88,6 +97,19 @@ async def handle_waifu_short(
         await matcher.finish("该群已禁用 galgame 功能")
     value = (arg.extract_plain_text() or "").strip()
     await _cmd_waifu(matcher, event, value)
+
+
+@yuzuwaifu_short.handle()
+async def handle_yuzuwaifu_short(
+    event: MessageEvent,
+    matcher: Matcher,
+    arg: Message = CommandArg(),
+) -> None:
+    """/yuzuwaifu 简化入口：固定柚子社，与 /waifu 共用每天一次。"""
+    if not _plugin_enabled_for_event(event):
+        await matcher.finish("该群已禁用 galgame 功能")
+    value = (arg.extract_plain_text() or "").strip()
+    await _cmd_waifu(matcher, event, value, source="yuzu")
 
 
 _LIMITS_RE = re.compile(r"(?i)\blimits?\s+(\d{1,4})\s*$")
@@ -104,6 +126,8 @@ _SUB_MAP = {
     "download": "download",
     "find": "find",
     "waifu": "waifu",
+    "yuzuwaifu": "yuzuwaifu",
+    "yuzu": "yuzuwaifu",
 }
 
 
@@ -170,6 +194,8 @@ async def handle_shou_gal(
             await _cmd_find(bot, event, matcher, keyword)
         elif sub == "waifu":
             await _cmd_waifu(matcher, event, keyword)
+        elif sub == "yuzuwaifu":
+            await _cmd_waifu(matcher, event, keyword, source="yuzu")
     except (http.HttpError, RuntimeError, ValueError) as exc:
         logger.warning("galgame-box 命令执行失败：{}", exc)
         await matcher.finish(str(exc))
@@ -518,7 +544,10 @@ def _waifu_text(record: dict, note: str = "") -> str:
 
 
 async def _cmd_waifu(
-    matcher: Matcher, event: MessageEvent, value: str
+    matcher: Matcher,
+    event: MessageEvent,
+    value: str,
+    source: str = "waifu",
 ) -> None:
     """每日老婆：每人每天一次，管理员可 reroll / set / settings。"""
     user_id = int(getattr(event, "user_id", 0))
@@ -535,11 +564,15 @@ async def _cmd_waifu(
     if not value:
         existing = waifu.get_today_waifu(user_id)
         if existing:
+            source_label = "yuzuwaifu" if existing.get("source") == "yuzu" else "waifu"
             await matcher.finish(
                 _waifu_reply(
                     event,
                     existing.get("image_url"),
-                    _waifu_text(existing, "你今天已经抽过啦，明天再来（重复展示今日老婆）"),
+                    _waifu_text(
+                        existing,
+                        f"你今天已经抽过{source_label}啦，明天再来（重复展示今日老婆）",
+                    ),
                 )
             )
         settings = waifu.load_settings()
@@ -551,15 +584,19 @@ async def _cmd_waifu(
             if group_settings["popular_off"]
             else settings.get("popular_threshold", 0)
         )
+        if source == "yuzu":
+            company_ids = await _yuzusoft_ids()
+        else:
+            company_ids = group_settings["company_ids"]
         character = await vndb.random_female_character(
             popular_threshold=popular,
             year_from=year_from,
             year_to=year_to,
-            company_ids=group_settings["company_ids"],
+            company_ids=company_ids,
         )
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
-        record = waifu.save_waifu(user_id, character)
+        record = waifu.save_waifu(user_id, character, source=source)
         await matcher.finish(
             _waifu_reply(event, record.get("image_url"), _waifu_text(record))
         )
@@ -577,15 +614,19 @@ async def _cmd_waifu(
             if group_settings["popular_off"]
             else settings.get("popular_threshold", 0)
         )
+        if source == "yuzu":
+            company_ids = await _yuzusoft_ids()
+        else:
+            company_ids = group_settings["company_ids"]
         character = await vndb.random_female_character(
             popular_threshold=popular,
             year_from=year_from,
             year_to=year_to,
-            company_ids=group_settings["company_ids"],
+            company_ids=company_ids,
         )
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
-        record = waifu.save_waifu(user_id, character)
+        record = waifu.save_waifu(user_id, character, source=source)
         await matcher.finish(
             _waifu_reply(
                 event,
@@ -667,6 +708,23 @@ def _event_group_settings(event: MessageEvent) -> dict:
         "year_off": waifu.get_group_year_off(int(group_id)),
         "popular_off": waifu.get_group_popular_off(int(group_id)),
     }
+
+
+_yuzusoft_ids_cache: list[str] | None = None
+
+
+async def _yuzusoft_ids() -> list[str]:
+    """柚子社固定厂商 ID（Yuzusoft + Yuzusoft SOUR），首次解析后缓存。"""
+    global _yuzusoft_ids_cache
+    if _yuzusoft_ids_cache is None:
+        try:
+            ids = await vndb.resolve_company_ids(
+                [str(name) for name in companies.COMPANIES["yuzusoft"]["search"]]
+            )
+        except Exception:
+            ids = []
+        _yuzusoft_ids_cache = ids or ["p98", "p12215"]
+    return _yuzusoft_ids_cache
 
 
 async def _handle_waifu_settings(
