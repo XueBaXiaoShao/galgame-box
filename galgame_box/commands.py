@@ -96,7 +96,10 @@ async def handle_waifu_short(
     if not _plugin_enabled_for_event(event):
         await matcher.finish("该群已禁用 galgame 功能")
     value = (arg.extract_plain_text() or "").strip()
-    await _cmd_waifu(matcher, event, value)
+    try:
+        await _cmd_waifu(matcher, event, value)
+    except (http.HttpError, RuntimeError) as exc:
+        await matcher.finish(f"waifu 抽卡失败，请稍后再试（{exc}）")
 
 
 @yuzuwaifu_short.handle()
@@ -109,7 +112,10 @@ async def handle_yuzuwaifu_short(
     if not _plugin_enabled_for_event(event):
         await matcher.finish("该群已禁用 galgame 功能")
     value = (arg.extract_plain_text() or "").strip()
-    await _cmd_waifu(matcher, event, value, source="yuzu")
+    try:
+        await _cmd_waifu(matcher, event, value, source="yuzu")
+    except (http.HttpError, RuntimeError) as exc:
+        await matcher.finish(f"yuzuwaifu 抽卡失败，请稍后再试（{exc}）")
 
 
 _LIMITS_RE = re.compile(r"(?i)\blimits?\s+(\d{1,4})\s*$")

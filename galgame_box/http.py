@@ -20,6 +20,10 @@ class _CloudflareBlocked(Exception):
     pass
 
 
+class _RateLimited(Exception):
+    pass
+
+
 def _client_kwargs() -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "timeout": httpx.Timeout(config.request_timeout),
@@ -57,16 +61,19 @@ async def request(
                 )
                 if handle_cf and response.status_code in (403, 503):
                     raise _CloudflareBlocked(f"Cloudflare {response.status_code}")
+                if response.status_code == 429:
+                    raise _RateLimited("HTTP 429 Too Many Requests")
                 response.raise_for_status()
                 if res_type == "json":
                     return response.json()
                 if res_type == "bytes":
                     return response.content
                 return response.text
-        except (httpx.HTTPError, _CloudflareBlocked) as exc:
+        except (httpx.HTTPError, _CloudflareBlocked, _RateLimited) as exc:
             last_error = exc
             if index + 1 < attempts:
-                await asyncio.sleep(0.5 * (index + 1))
+                backoff = 2.0 * (index + 1) if isinstance(exc, _RateLimited) else 0.5 * (index + 1)
+                await asyncio.sleep(backoff)
 
     if handle_cf:
         try:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import time
 from typing import Any
 
 from . import http
@@ -22,7 +23,23 @@ FIELDS = {
 }
 
 
+_vndb_lock = asyncio.Lock()
+_last_vndb_request = 0.0
+VNDB_MIN_INTERVAL = 0.5
+
+
 async def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """VNDB 请求节流：串行 + 最小间隔，避免 429 限流。"""
+    global _last_vndb_request
+    async with _vndb_lock:
+        wait = _last_vndb_request + VNDB_MIN_INTERVAL - time.monotonic()
+        if wait > 0:
+            await asyncio.sleep(wait)
+        _last_vndb_request = time.monotonic()
+        return await _post_impl(path, payload)
+
+
+async def _post_impl(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     return await http.request("POST", KANA_URL + path, json=payload, res_type="json")
 
 
@@ -299,7 +316,7 @@ async def _random_female_character_by_company(
     if not vns:
         return None
     random.shuffle(vns)
-    for vn in vns[:10]:
+    for vn in vns[:5]:
         char_payload = {
             "filters": ["and", ["sex", "=", "f"], ["vn", "=", ["id", "=", vn["id"]]]],
             "fields": FIELDS["character"],

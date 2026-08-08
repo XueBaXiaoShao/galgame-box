@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from galgame_box import commands
+from galgame_box import commands, http
 
 
 def test_parse_subcommand_english_only() -> None:
@@ -78,6 +78,19 @@ async def test_waifu_short_blocked_when_group_disabled(monkeypatch) -> None:
     await _run(commands.handle_waifu_short(_fake_event(1), matcher, Message("")))
 
     assert "已禁用 galgame 功能" in str(matcher.sent[-1])
+
+
+async def test_waifu_short_reports_failure(monkeypatch) -> None:
+    async def boom(matcher, event, value):
+        raise http.HttpError("VNDB 繁忙")
+
+    monkeypatch.setattr(commands, "_cmd_waifu", boom)
+    from nonebot.adapters.onebot.v11 import Message
+
+    matcher = _FakeMatcher()
+    await _run(commands.handle_waifu_short(_fake_event(1), matcher, Message("")))
+
+    assert "抽卡失败" in str(matcher.sent[-1])
 
 
 async def test_waifu_short_delegates_to_waifu(monkeypatch) -> None:
