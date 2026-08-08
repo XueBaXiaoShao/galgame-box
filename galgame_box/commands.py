@@ -30,6 +30,7 @@ from . import (
     vndb,
     waifu,
     waifu_cache,
+    waifu_usage,
 )
 from .config import config
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
@@ -589,6 +590,8 @@ async def _cmd_waifu(
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character, source=source)
+        if source != "yuzu":
+            waifu_usage.mark_used(character.id)
         await matcher.finish(
             _waifu_reply(event, record.get("image_url"), _waifu_text(record))
         )
@@ -603,6 +606,8 @@ async def _cmd_waifu(
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character, source=source)
+        if source != "yuzu":
+            waifu_usage.mark_used(character.id)
         await matcher.finish(
             _waifu_reply(
                 event,
@@ -750,7 +755,7 @@ async def _draw_waifu_character(
     character: VNDBCharacter | None = None
     if cache_key and waifu_cache.is_fresh(cache_key):
         character = waifu_cache.pick_character(
-            cache_key, popular, year_from, year_to
+            cache_key, popular, year_from, year_to, lru=source != "yuzu"
         )
     if character is None:
         try:
@@ -764,7 +769,7 @@ async def _draw_waifu_character(
         except (http.HttpError, RuntimeError):
             if cache_key:
                 character = waifu_cache.pick_character(
-                    cache_key, popular, year_from, year_to
+                    cache_key, popular, year_from, year_to, lru=source != "yuzu"
                 )
             if character is None:
                 raise

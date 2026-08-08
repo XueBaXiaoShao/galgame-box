@@ -141,6 +141,8 @@ nonebot.load_plugin("galgame_box")
 实时查询过的作品/角色会写入 `data/waifu_cache.json`：
 
 - 当天有新鲜缓存时抽卡直接本地挑选，不再请求 VNDB；
+- 普通 waifu 采用 **LRU 轮换**：优先抽最久没被抽到的角色（从未抽过的优先），
+  抽完记录到 `data/waifu_usage.json`；`/yuzuwaifu` 保持随机、不参与 LRU；
 - 每天 `GALGAME_CACHE_REFRESH_TIME` 增量刷新：已有角色的作品跳过接口，
   只查询新作品（首次每家会社约 30 个作品 + 角色，之后每天只查新增）；
 - 实时查询失败时可用过期缓存兜底。

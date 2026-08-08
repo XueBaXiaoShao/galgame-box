@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .config import config
 from .models import Image, VNDBCharacter, VnRef
+from . import waifu_usage
 
 _lock = threading.Lock()
 
@@ -121,8 +122,9 @@ def pick_character(
     popular_threshold: int = 0,
     year_from: int = 0,
     year_to: int = 0,
+    lru: bool = False,
 ) -> VNDBCharacter | None:
-    """从缓存中按筛选条件随机挑一个女性有立绘的角色。"""
+    """从缓存中按筛选条件挑角色；lru=True 时优先最久未使用的角色。"""
     entry = _load().get("companies", {}).get(key)
     if not entry:
         return None
@@ -147,7 +149,21 @@ def pick_character(
             candidates.append(character)
     if not candidates:
         return None
-    chosen = random.choice(candidates)
+    if lru:
+        usage = waifu_usage.usage_map()
+        never_used = [candidate for candidate in candidates if candidate["id"] not in usage]
+        if never_used:
+            chosen = random.choice(never_used)
+        else:
+            oldest = min(usage[candidate["id"]] for candidate in candidates)
+            bucket = [
+                candidate
+                for candidate in candidates
+                if usage[candidate["id"]] == oldest
+            ]
+            chosen = random.choice(bucket)
+    else:
+        chosen = random.choice(candidates)
     vn_refs = [
         VnRef(
             id=vn_id,

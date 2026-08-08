@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from galgame_box import waifu_cache
+from galgame_box import waifu_usage
 from galgame_box.models import Image, VNDBCharacter, VnRef
 
 
@@ -64,3 +65,34 @@ def test_pick_ignores_male_or_no_image(tmp_path, monkeypatch) -> None:
     )
 
     assert waifu_cache.pick_character("smee") is None
+
+
+def test_pick_character_lru_prefers_least_used(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(waifu_cache.config, "data_dir", str(tmp_path))
+    monkeypatch.setattr(waifu_usage.config, "data_dir", str(tmp_path))
+    waifu_cache.add_company_data(
+        "key",
+        [{"id": "v1", "title": "Game", "released": None, "votecount": None}],
+        [_character("c1", "Game", "v1"), _character("c2", "Game", "v1")],
+    )
+
+    # 只有 c2 用过 → 应优先抽从未用过的 c1
+    waifu_usage.mark_used("c2")
+    assert waifu_cache.pick_character("key", lru=True).id == "c1"
+
+    # c1 也用过（且比 c2 晚用）→ 应抽最久未用的 c2
+    waifu_usage.mark_used("c1")
+    assert waifu_cache.pick_character("key", lru=True).id == "c2"
+
+
+def test_pick_character_without_lru_stays_random(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(waifu_cache.config, "data_dir", str(tmp_path))
+    waifu_cache.add_company_data(
+        "smee",
+        [{"id": "v1", "title": "Game", "released": None, "votecount": None}],
+        [_character("c1", "Game", "v1"), _character("c2", "Game", "v1")],
+    )
+
+    picked = waifu_cache.pick_character("smee", lru=False)
+    assert picked is not None
+    assert picked.id in ("c1", "c2")

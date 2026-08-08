@@ -411,6 +411,32 @@ async def test_waifu_draw_uses_fresh_cache_first(monkeypatch, tmp_path) -> None:
     assert waifu.get_today_waifu(123)["character_id"] == "c1"
 
 
+async def test_draw_marks_usage_for_waifu_not_yuzu(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    from galgame_box import waifu_usage
+
+    monkeypatch.setattr(waifu_usage.config, "data_dir", str(tmp_path))
+    picks = [_character("c5"), _character("c6")]
+
+    async def fake_random(**kwargs):
+        return picks.pop(0)
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    monkeypatch.setattr(commands, "_yuzusoft_ids", _FakeAsync(["p98"]))
+    matcher = _FakeMatcher()
+
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), ""))
+    assert waifu_usage.last_used("c5") is not None
+
+    waifu.reset_waifu(123)
+    await _run(
+        commands._cmd_waifu(matcher, _FakeEvent(123), "", source="yuzu")
+    )
+    assert waifu_usage.last_used("c6") is None
+
+
 async def test_waifu_group_backdoor_sets_company(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
     _write_admins(tmp_path, [999])
