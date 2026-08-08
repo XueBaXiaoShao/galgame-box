@@ -557,7 +557,9 @@ async def test_waifu_and_yuzuwaifu_share_daily_quota(monkeypatch, tmp_path) -> N
         commands._cmd_waifu(matcher, _FakeEvent(123), "", source="yuzu")
     )
     assert len(calls) == 1
-    assert "已经抽过" in str(matcher.sent[-1])
+    assert "已经抽过了" in str(matcher.sent[-1])
+    assert "yuzuwaifu" not in str(matcher.sent[-1])
+    assert "二选一" not in str(matcher.sent[-1])
     assert waifu.get_today_waifu(123)["source"] == "waifu"
 
     # 重置后再抽 yuzuwaifu 成功
@@ -567,6 +569,11 @@ async def test_waifu_and_yuzuwaifu_share_daily_quota(monkeypatch, tmp_path) -> N
     )
     assert len(calls) == 2
     assert waifu.get_today_waifu(123)["source"] == "yuzu"
+    # 先抽 yuzuwaifu 后再调 waifu：提示按当前命令说“已经抽过waifu了”
+    await _run(commands._cmd_waifu(matcher, _FakeEvent(123), ""))
+    assert "已经抽过了" in str(matcher.sent[-1])
+    assert "waifu" not in str(matcher.sent[-1])
+    assert len(calls) == 2
 
 
 async def test_waifu_draw_mentions_user_in_group(monkeypatch, tmp_path) -> None:

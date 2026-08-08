@@ -573,14 +573,13 @@ async def _cmd_waifu(
     if not value:
         existing = waifu.get_today_waifu(user_id)
         if existing:
-            source_label = "yuzuwaifu" if existing.get("source") == "yuzu" else "waifu"
             await matcher.finish(
                 _waifu_reply(
                     event,
                     existing.get("image_url"),
                     _waifu_text(
                         existing,
-                        f"你今天已经抽过{source_label}啦，明天再来（重复展示今日老婆）",
+                        "你今天已经抽过了，明天再来（重复展示今日老婆）",
                     ),
                 )
             )
