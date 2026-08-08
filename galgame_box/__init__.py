@@ -9,7 +9,7 @@ from nonebot import logger
 from nonebot.plugin import PluginMetadata
 
 from . import commands  # noqa: F401
-from .scheduler import setup_daily_push
+from .scheduler import setup_cache_refresh, setup_daily_push
 
 __plugin_meta__ = PluginMetadata(
     name="Galgame百宝盒",
@@ -29,3 +29,4 @@ __plugin_meta__ = PluginMetadata(
 )
 
 setup_daily_push()
+setup_cache_refresh()

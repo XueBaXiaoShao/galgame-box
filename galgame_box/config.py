@@ -85,6 +85,10 @@ class Config:
     push_time: str = "07:00"
     # 插件数据目录（每日老婆状态等）；未配置时回退 LOCALSTORE_DATA_DIR
     data_dir: str = "data"
+    # 每日定时刷新 waifu 缓存（增量，只查新作品）
+    cache_refresh_enabled: bool = True
+    cache_refresh_time: str = "04:00"
+    cache_vn_limit: int = 30
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -110,6 +114,13 @@ class Config:
                 or _env_str("LOCALSTORE_DATA_DIR")
                 or "data"
             ),
+            cache_refresh_enabled=_env_bool(
+                "GALGAME_CACHE_REFRESH_ENABLED", True
+            ),
+            cache_refresh_time=_env_str(
+                "GALGAME_CACHE_REFRESH_TIME", "04:00"
+            ),
+            cache_vn_limit=_env_int("GALGAME_CACHE_VN_LIMIT", 30),
         )
 
 

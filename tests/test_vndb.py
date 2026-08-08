@@ -136,6 +136,86 @@ async def test_resolve_company_ids_uses_search_names(monkeypatch) -> None:
     assert ids == ["p98", "p12215"]
 
 
+async def test_refresh_company_cache_skips_existing_vns(
+    monkeypatch, tmp_path
+) -> None:
+    from galgame_box import waifu_cache
+    from galgame_box.models import Image
+
+    monkeypatch.setattr(waifu_cache.config, "data_dir", str(tmp_path))
+    waifu_cache.add_company_data(
+        "yuzusoft",
+        [{"id": "v1", "title": "Game", "released": "2012-01-01", "votecount": 4141}],
+        [
+            vndb.VNDBCharacter(
+                id="c1",
+                name="Hero",
+                sex=["f"],
+                image=Image(url="https://t.vndb.org/1.jpg"),
+                vns=[{"id": "v1", "title": "Game"}],
+            )
+        ],
+    )
+    calls: list[str] = []
+
+    async def fake_post(path, payload):
+        calls.append(path)
+        if path == "vn":
+            return {
+                "results": [
+                    {"id": "v1", "title": "Game", "released": "2012-01-01", "votecount": 4141}
+                ]
+            }
+        return {"results": []}
+
+    monkeypatch.setattr(vndb, "_post", fake_post)
+
+    result = await vndb.refresh_company_cache("yuzusoft", ["p98"], vn_limit=10)
+
+    assert result["skipped"] == 1
+    assert result["new_vns"] == 0
+    assert calls == ["vn"]
+
+
+async def test_refresh_company_cache_fetches_new_vn(
+    monkeypatch, tmp_path
+) -> None:
+    from galgame_box import waifu_cache
+    from galgame_box.models import Image
+
+    monkeypatch.setattr(waifu_cache.config, "data_dir", str(tmp_path))
+    calls: list[str] = []
+
+    async def fake_post(path, payload):
+        calls.append(path)
+        if path == "vn":
+            return {
+                "results": [
+                    {"id": "v9", "title": "New", "released": "2024-01-01", "votecount": 100}
+                ]
+            }
+        return {
+            "results": [
+                {
+                    "id": "c9",
+                    "name": "New Heroine",
+                    "sex": ["f"],
+                    "image": {"url": "https://t.vndb.org/9.jpg"},
+                    "vns": [{"id": "v9", "title": "New"}],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(vndb, "_post", fake_post)
+
+    result = await vndb.refresh_company_cache("smee", ["p10"], vn_limit=10)
+
+    assert calls == ["vn", "character"]
+    assert result["new_vns"] == 1
+    assert result["new_characters"] == 1
+    assert waifu_cache.is_fresh("smee") is True
+
+
 async def test_random_female_character_uses_fast_company_path(monkeypatch) -> None:
     calls = []
 

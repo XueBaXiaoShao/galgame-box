@@ -29,6 +29,7 @@ from . import (
     touchgal,
     vndb,
     waifu,
+    waifu_cache,
 )
 from .config import config
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
@@ -584,27 +585,7 @@ async def _cmd_waifu(
             )
         settings = waifu.load_settings()
         group_settings = _event_group_settings(event)
-        year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
-        year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
-        popular = (
-            0
-            if group_settings["popular_off"]
-            else settings.get("popular_threshold", 0)
-        )
-        if source == "yuzu":
-            company_ids = await _yuzusoft_ids()
-        else:
-            company_ids = (
-                group_settings["company_ids"]
-                or _pick_pool_company_ids(settings)
-                or []
-            )
-        character = await vndb.random_female_character(
-            popular_threshold=popular,
-            year_from=year_from,
-            year_to=year_to,
-            company_ids=company_ids,
-        )
+        character = await _draw_waifu_character(settings, group_settings, source)
         if character is None:
             await matcher.finish("今天暂时抽不到老婆，请稍后再试")
         record = waifu.save_waifu(user_id, character, source=source)
@@ -618,27 +599,7 @@ async def _cmd_waifu(
             await matcher.finish("只有管理员可以更换每日老婆")
         settings = waifu.load_settings()
         group_settings = _event_group_settings(event)
-        year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
-        year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
-        popular = (
-            0
-            if group_settings["popular_off"]
-            else settings.get("popular_threshold", 0)
-        )
-        if source == "yuzu":
-            company_ids = await _yuzusoft_ids()
-        else:
-            company_ids = (
-                group_settings["company_ids"]
-                or _pick_pool_company_ids(settings)
-                or []
-            )
-        character = await vndb.random_female_character(
-            popular_threshold=popular,
-            year_from=year_from,
-            year_to=year_to,
-            company_ids=company_ids,
-        )
+        character = await _draw_waifu_character(settings, group_settings, source)
         if character is None:
             await matcher.finish("更换失败，请稍后再试")
         record = waifu.save_waifu(user_id, character, source=source)
@@ -742,17 +703,72 @@ async def _yuzusoft_ids() -> list[str]:
     return _yuzusoft_ids_cache
 
 
-def _pick_pool_company_ids(settings: dict) -> list[str]:
-    """全局池先本地随机选一家会社，再用这一家的 ID 查询，避免大 OR 限流。"""
+def _pick_pool_company(settings: dict) -> tuple[str | None, list[str]]:
+    """全局池先本地随机选一家会社，返回（会社 key, 该会社 ID 列表）。"""
     pool_companies = settings.get("pool_companies") or []
     groups = settings.get("pool_company_ids") or {}
     if isinstance(groups, dict) and pool_companies:
         key = random.choice(pool_companies)
         ids = groups.get(key) or []
-        return [str(item) for item in ids]
+        if ids:
+            return key, [str(item) for item in ids]
+        # 该会社没有解析到 ID：退化为整池
+        all_ids = [str(item) for value in groups.values() for item in value]
+        return None, all_ids
     if isinstance(groups, list):
-        return [str(item) for item in groups]
-    return []
+        return None, [str(item) for item in groups]
+    return None, []
+
+
+async def _draw_waifu_character(
+    settings: dict,
+    group_settings: dict,
+    source: str,
+) -> VNDBCharacter:
+    """抽卡：新鲜缓存优先，否则实时查询并回填缓存，失败可用过期缓存兜底。"""
+    popular = (
+        0
+        if group_settings["popular_off"]
+        else settings.get("popular_threshold", 0)
+    )
+    year_from = 0 if group_settings["year_off"] else settings.get("year_from", 0)
+    year_to = 0 if group_settings["year_off"] else settings.get("year_to", 0)
+
+    if source == "yuzu":
+        cache_key: str | None = "yuzusoft"
+        company_ids = await _yuzusoft_ids()
+    elif group_settings["company_ids"]:
+        cache_key = (
+            group_settings["companies"][0]
+            if group_settings["companies"]
+            else None
+        )
+        company_ids = group_settings["company_ids"]
+    else:
+        cache_key, company_ids = _pick_pool_company(settings)
+
+    character: VNDBCharacter | None = None
+    if cache_key and waifu_cache.is_fresh(cache_key):
+        character = waifu_cache.pick_character(
+            cache_key, popular, year_from, year_to
+        )
+    if character is None:
+        try:
+            character = await vndb.random_female_character(
+                popular_threshold=popular,
+                year_from=year_from,
+                year_to=year_to,
+                company_ids=company_ids,
+                cache_key=cache_key,
+            )
+        except (http.HttpError, RuntimeError):
+            if cache_key:
+                character = waifu_cache.pick_character(
+                    cache_key, popular, year_from, year_to
+                )
+            if character is None:
+                raise
+    return character
 
 
 async def _handle_waifu_settings(

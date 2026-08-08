@@ -49,3 +49,14 @@ def test_env_int_list_supports_comma_and_json(monkeypatch) -> None:
     monkeypatch.setenv("GALGAME_PUSH_GROUPS", "bad")
     assert _env_int_list("GALGAME_PUSH_GROUPS") == []
 
+
+def test_cache_refresh_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("GALGAME_CACHE_REFRESH_ENABLED", raising=False)
+    monkeypatch.delenv("GALGAME_CACHE_REFRESH_TIME", raising=False)
+    monkeypatch.delenv("GALGAME_CACHE_VN_LIMIT", raising=False)
+
+    cfg = Config.from_env()
+
+    assert cfg.cache_refresh_enabled is True
+    assert cfg.cache_refresh_time == "04:00"
+    assert cfg.cache_vn_limit == 30

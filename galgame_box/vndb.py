@@ -7,7 +7,7 @@ import random
 import time
 from typing import Any
 
-from . import http
+from . import http, waifu_cache
 from .models import VNDBCharacter, VNDBProducer, VNDBVn
 
 KANA_URL = "https://api.vndb.org/kana/"
@@ -213,6 +213,7 @@ async def random_female_character(
     year_from: int = 0,
     year_to: int = 0,
     company_ids: list[str] | None = None,
+    cache_key: str | None = None,
 ) -> VNDBCharacter | None:
     """随机抽取一名有立绘的女性角色（每日老婆用，可带热度/年代/会社筛选）。"""
     if company_ids:
@@ -221,6 +222,7 @@ async def random_female_character(
             year_from=year_from,
             year_to=year_to,
             company_ids=company_ids,
+            cache_key=cache_key,
         )
     filters = _waifu_filters(
         popular_threshold=popular_threshold,
@@ -282,6 +284,7 @@ async def _random_female_character_by_company(
     year_from: int = 0,
     year_to: int = 0,
     company_ids: list[str],
+    cache_key: str | None = None,
 ) -> VNDBCharacter | None:
     """会社后门快路径：先按热度取该社作品，再随机取其中一部作品的女角色。
 
@@ -316,6 +319,7 @@ async def _random_female_character_by_company(
     if not vns:
         return None
     random.shuffle(vns)
+    seen_characters: list[VNDBCharacter] = []
     for vn in vns[:5]:
         char_payload = {
             "filters": ["and", ["sex", "=", "f"], ["vn", "=", ["id", "=", vn["id"]]]],
@@ -331,6 +335,7 @@ async def _random_female_character_by_company(
             ]
         except Exception:
             continue
+        seen_characters.extend(characters)
         candidates = [
             character
             for character in characters
@@ -340,7 +345,11 @@ async def _random_female_character_by_company(
             and character.sex[0] == "f"
         ]
         if candidates:
+            if cache_key:
+                waifu_cache.add_company_data(cache_key, vns, seen_characters)
             return random.choice(candidates)
+    if cache_key and seen_characters:
+        waifu_cache.add_company_data(cache_key, vns, seen_characters)
     return None
 
 
@@ -374,3 +383,60 @@ async def resolve_company_ids(search_names: list[str]) -> list[str]:
             if producer_id not in ids:
                 ids.append(producer_id)
     return ids
+
+
+async def refresh_company_cache(
+    key: str,
+    company_ids: list[str],
+    *,
+    vn_limit: int = 30,
+    char_limit: int = 50,
+) -> dict[str, int]:
+    """增量刷新一家会社的缓存：已有角色的作品跳过，只查新作品的角色。"""
+    vn_filters = [
+        "or",
+        *[
+            ["developer", "=", ["id", "=", producer_id]]
+            for producer_id in company_ids
+        ],
+    ]
+    vn_payload = {
+        "filters": vn_filters,
+        "fields": "id,title,released,votecount",
+        "sort": "votecount",
+        "reverse": True,
+        "results": max(1, vn_limit),
+    }
+    vns = (await _post("vn", vn_payload)).get("results") or []
+    new_vns = 0
+    new_characters = 0
+    skipped = 0
+    for vn in vns:
+        vn_id = vn["id"]
+        if waifu_cache.has_character_for_vn(key, vn_id):
+            waifu_cache.add_company_data(key, [vn], [])
+            skipped += 1
+            continue
+        char_payload = {
+            "filters": ["and", ["sex", "=", "f"], ["vn", "=", ["id", "=", vn_id]]],
+            "fields": FIELDS["character"],
+            "results": max(1, char_limit),
+        }
+        try:
+            characters = [
+                VNDBCharacter.model_validate(item)
+                for item in (await _post("character", char_payload)).get(
+                    "results", []
+                )
+            ]
+        except Exception:
+            characters = []
+        waifu_cache.add_company_data(key, [vn], characters)
+        new_vns += 1
+        new_characters += len(characters)
+    return {
+        "vns": len(vns),
+        "new_vns": new_vns,
+        "new_characters": new_characters,
+        "skipped": skipped,
+    }

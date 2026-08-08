@@ -132,6 +132,18 @@ nonebot.load_plugin("galgame_box")
 | `GALGAME_PUSH_GROUPS` | 空 | 每日推送的群号，逗号或 JSON 数组，如 `111,222` |
 | `GALGAME_PUSH_TIME` | `07:00` | 每日推送时间 `HH:MM` |
 | `GALGAME_DATA_DIR` | `data/` | 插件状态数据目录（每日老婆等） |
+| `GALGAME_CACHE_REFRESH_ENABLED` | `true` | 每日定时刷新 waifu 角色缓存 |
+| `GALGAME_CACHE_REFRESH_TIME` | `04:00` | 缓存刷新时间 `HH:MM` |
+| `GALGAME_CACHE_VN_LIMIT` | `30` | 每家会社刷新时最多拉取的作品数 |
+
+### waifu 本地缓存
+
+实时查询过的作品/角色会写入 `data/waifu_cache.json`：
+
+- 当天有新鲜缓存时抽卡直接本地挑选，不再请求 VNDB；
+- 每天 `GALGAME_CACHE_REFRESH_TIME` 增量刷新：已有角色的作品跳过接口，
+  只查询新作品（首次每家会社约 30 个作品 + 角色，之后每天只查新增）；
+- 实时查询失败时可用过期缓存兜底。
 
 ## 与 xqq-forwarder 的共存方式
 

@@ -373,7 +373,42 @@ async def test_waifu_draw_uses_settings(monkeypatch, tmp_path) -> None:
         "year_from": 2000,
         "year_to": 2010,
         "company_ids": [],
+        "cache_key": None,
     }
+
+
+async def test_waifu_draw_uses_fresh_cache_first(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(commands.config, "data_dir", str(tmp_path))
+    from galgame_box import waifu_cache
+    from galgame_box.models import Image, VnRef
+
+    waifu_cache.add_company_data(
+        "yuzusoft",
+        [{"id": "v1", "title": "Game", "released": "2012-01-01", "votecount": 4141}],
+        [
+            commands.VNDBCharacter(
+                id="c1",
+                name="Hero",
+                original="ヒーロー",
+                sex=["f"],
+                image=Image(url="https://t.vndb.org/1.jpg"),
+                vns=[VnRef(id="v1", title="Game")],
+            )
+        ],
+    )
+
+    async def fake_random(**kwargs):
+        raise AssertionError("有新鲜缓存时不应请求 VNDB")
+
+    monkeypatch.setattr(vndb, "random_female_character", fake_random)
+    matcher = _FakeMatcher()
+    await _run(
+        commands._cmd_waifu(
+            matcher, _FakeGroupEvent(123, 912875556), "", source="yuzu"
+        )
+    )
+
+    assert waifu.get_today_waifu(123)["character_id"] == "c1"
 
 
 async def test_waifu_group_backdoor_sets_company(monkeypatch, tmp_path) -> None:
