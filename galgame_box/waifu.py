@@ -54,7 +54,7 @@ def default_settings() -> dict[str, Any]:
         "year_from": 0,
         "year_to": 0,
         "pool_companies": [],
-        "pool_company_ids": [],
+        "pool_company_ids": {},
     }
 
 
@@ -71,8 +71,17 @@ def load_settings() -> dict[str, Any]:
         value = payload[key]
         if isinstance(value, int) and not isinstance(value, bool):
             settings[key] = value
-        elif key in ("pool_companies", "pool_company_ids") and isinstance(value, list):
+        elif key == "pool_companies" and isinstance(value, list):
             settings[key] = [str(item) for item in value if str(item).strip()]
+        elif key == "pool_company_ids":
+            if isinstance(value, dict):
+                settings[key] = {
+                    str(company): [str(item) for item in ids if str(item).strip()]
+                    for company, ids in value.items()
+                    if isinstance(ids, list)
+                }
+            elif isinstance(value, list):
+                settings[key] = [str(item) for item in value if str(item).strip()]
     return settings
 
 

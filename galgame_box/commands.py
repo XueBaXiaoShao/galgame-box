@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import random
 import re
 from datetime import datetime
 from io import BytesIO
@@ -595,7 +596,7 @@ async def _cmd_waifu(
         else:
             company_ids = (
                 group_settings["company_ids"]
-                or settings.get("pool_company_ids")
+                or _pick_pool_company_ids(settings)
                 or []
             )
         character = await vndb.random_female_character(
@@ -629,7 +630,7 @@ async def _cmd_waifu(
         else:
             company_ids = (
                 group_settings["company_ids"]
-                or settings.get("pool_company_ids")
+                or _pick_pool_company_ids(settings)
                 or []
             )
         character = await vndb.random_female_character(
@@ -741,6 +742,19 @@ async def _yuzusoft_ids() -> list[str]:
     return _yuzusoft_ids_cache
 
 
+def _pick_pool_company_ids(settings: dict) -> list[str]:
+    """全局池先本地随机选一家会社，再用这一家的 ID 查询，避免大 OR 限流。"""
+    pool_companies = settings.get("pool_companies") or []
+    groups = settings.get("pool_company_ids") or {}
+    if isinstance(groups, dict) and pool_companies:
+        key = random.choice(pool_companies)
+        ids = groups.get(key) or []
+        return [str(item) for item in ids]
+    if isinstance(groups, list):
+        return [str(item) for item in groups]
+    return []
+
+
 async def _handle_waifu_settings(
     matcher: Matcher, event: MessageEvent, value: str
 ) -> None:
@@ -819,21 +833,25 @@ async def _handle_waifu_settings(
             await matcher.finish("用法：/shou gal waifu settings pool set|off")
         if parts[1].lower() == "off":
             settings["pool_companies"] = []
-            settings["pool_company_ids"] = []
+            settings["pool_company_ids"] = {}
             waifu.save_settings(settings)
             await matcher.finish("已关闭全局会社池（waifu 不限会社）")
-        search_names: list[str] = []
+        groups: dict[str, list[str]] = {}
         for key in companies.WAIFU_POOL_KEYS:
-            search_names.extend(
+            search_names = [
                 str(name) for name in companies.COMPANIES[key]["search"]
-            )
-        ids = await vndb.resolve_company_ids(search_names)
+            ]
+            try:
+                groups[key] = await vndb.resolve_company_ids(search_names)
+            except Exception:
+                groups[key] = []
         settings["pool_companies"] = list(companies.WAIFU_POOL_KEYS)
-        settings["pool_company_ids"] = ids
+        settings["pool_company_ids"] = groups
         waifu.save_settings(settings)
+        total = sum(len(ids) for ids in groups.values())
         await matcher.finish(
             f"已设置全局会社池：{companies.display_names(list(companies.WAIFU_POOL_KEYS))}"
-            f"（解析到 {len(ids)} 个 VNDB 厂商，含旗下品牌）"
+            f"（{len(groups)} 家会社，共 {total} 个 VNDB 厂商；抽卡时随机选一家）"
         )
     if action == "reset":
         waifu.save_settings(waifu.default_settings())
